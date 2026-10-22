@@ -11,7 +11,7 @@ func before_each() -> void:
 
 ## Sim with no automatic spawns and no opening fireworks.
 func make_sim(overrides := {}) -> FuseSim:
-	var cfg := Config.with_overrides(base_cfg, {"fireworks_start": 0, "fireworks_max": 0, "spark_accel": 0.0, "spark_accel2": 0.0, "spark_speed_per_ignition": 0.0})
+	var cfg := Config.with_overrides(base_cfg, {"fireworks_start": 0, "fireworks_max": 0, "spark_energy_gain": 0.0, "heat_speed": [0.0, 0.0, 0.0], "grip_grace": 0.0, "spool_start": 5000.0, "spool_max": 9000.0})
 	cfg = Config.with_overrides(cfg, overrides)
 	var sim := FuseSim.new(cfg, ARENA, 1)
 	sim.start(Vector2(360, 1200))
@@ -57,7 +57,7 @@ func test_spark_catches_a_resting_head() -> void:
 	var sim := make_sim()
 	draw_path(sim, [Vector2(360, 800)])  # 400 px
 	var t := run_until_over(sim)
-	var expected: float = base_cfg.spark_delay + 400.0 / base_cfg.spark_speed_start
+	var expected: float = base_cfg.spark_delay + 400.0 / base_cfg.spark_speed_base
 	assert_true(sim.over, "game over")
 	assert_near(t, expected, 0.15, "catch time")
 
@@ -87,14 +87,14 @@ func test_self_crossing_creates_shortcut() -> void:
 	var loop_path := [Vector2(360, 800), Vector2(560, 800), Vector2(560, 1000), Vector2(260, 1000)]
 	var sim := make_sim()
 	draw_path(sim, loop_path)
-	assert_true(sim.stats.junctions >= 1, "junction registered")
+	assert_eq(sim.stats.junctions, 1, "exactly one junction for one crossing")
 	var t_loop := run_until_over(sim)
 	var length := 0.0
 	var prev := Vector2(360, 1200)
 	for p in loop_path:
 		length += prev.distance_to(p)
 		prev = p
-	var t_full: float = base_cfg.spark_delay + length / base_cfg.spark_speed_start
+	var t_full: float = base_cfg.spark_delay + length / base_cfg.spark_speed_base
 	assert_true(t_loop < t_full - 2.0, "fire took the shortcut (%.2f < %.2f)" % [t_loop, t_full])
 
 
@@ -117,7 +117,7 @@ func test_banger_blast_ignites_fuse_ahead() -> void:
 	var t := run_until_over(sim)
 	assert_true(sim.stats.blast_fuse_hits >= 1, "blast hit the fuse")
 	var full_len := 500.0 + 110.0 + 400.0 + 150.0
-	var t_full: float = base_cfg.spark_delay + full_len / base_cfg.spark_speed_start
+	var t_full: float = base_cfg.spark_delay + full_len / base_cfg.spark_speed_base
 	assert_true(t < t_full - 3.0, "caught early by ember (%.2f < %.2f)" % [t, t_full])
 
 
@@ -247,3 +247,117 @@ func test_finale_ignites_remaining_threaded_fireworks() -> void:
 	assert_eq(a.state, FuseSim.FwState.EXPLODED, "a exploded in finale")
 	assert_eq(b.state, FuseSim.FwState.EXPLODED, "b exploded in finale")
 	assert_true(sim.stats.finale_points > 0, "finale points counted")
+
+
+# --- v2 economy and rules ------------------------------------------------------
+
+func test_spool_limits_drawing() -> void:
+	var sim := make_sim({"spool_start": 200.0})
+	var empty := [false]
+	sim.spool_empty.connect(func(): empty[0] = true)
+	var ok := sim.extend(0, Vector2(360, 800))
+	assert_false(ok, "extend reports dry spool")
+	assert_true(empty[0], "spool_empty emitted")
+	assert_eq(sim.fuses[0].size(), 26, "only 200 px (25 points) drawn")
+	assert_near(sim.spool, 0.0, 0.001, "spool used up")
+
+
+func test_refund_on_ignition_not_on_threading() -> void:
+	var sim := make_sim({"spool_start": 1000.0})
+	sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 1100))
+	draw_path(sim, [Vector2(360, 900)])
+	var after_draw := sim.spool
+	assert_near(after_draw, 1000.0 - 296.0, 8.1, "drawing costs spool")
+	while sim.ignitions == 0 and not sim.over:
+		sim.step(1.0 / 60.0)
+	assert_near(sim.spool, after_draw + base_cfg.refund.fountain, 0.01, "refund arrives with ignition")
+
+
+func test_greed_makes_fire_faster() -> void:
+	var sim := make_sim({"heat_speed": [0.0, 0.15, 0.30]})
+	draw_path(sim, [Vector2(360, 1100)])
+	for i in int((base_cfg.spark_delay + 0.05) * 60):
+		sim.step(1.0 / 60.0)
+	var f := sim.fuses[0]
+	assert_eq(sim.heat_for_fuse(f), 3, "close = heat 3")
+	assert_near(sim.speed_for(f), sim.base_speed() * 1.30, 0.01, "heat 3 burns 30% faster")
+
+
+func test_speed_rises_with_ignitions_and_decays() -> void:
+	var sim := make_sim({"spark_energy_gain": 5.0})
+	var v0 := sim.base_speed()
+	sim.fire_energy = 5.0
+	assert_near(sim.base_speed(), v0 + 25.0, 0.01, "energy raises speed")
+	draw_path(sim, [Vector2(360, 300)])
+	for i in 60 * 3:
+		sim.step(1.0 / 60.0)
+	assert_false(sim.over, "still running")
+	assert_near(sim.fire_energy, 5.0 * exp(-3.0 / base_cfg.spark_energy_tau), 0.05, "decays without ignitions")
+	sim.fire_energy = 1000.0
+	assert_near(sim.base_speed(), base_cfg.spark_speed_cap, 0.01, "capped")
+
+
+func test_grip_grace_slows_fire_after_release() -> void:
+	var sim := make_sim({"grip_grace": 0.5, "grip_grace_factor": 0.5})
+	draw_path(sim, [Vector2(360, 900)])
+	for i in int((base_cfg.spark_delay + 0.2) * 60):
+		sim.step(1.0 / 60.0)
+	var f := sim.fuses[0]
+	var held := sim.speed_for(f)
+	sim.release(0)
+	assert_near(sim.speed_for(f), held * 0.5, 0.01, "grace right after release")
+	for i in 40:
+		sim.step(1.0 / 60.0)
+	assert_near(sim.speed_for(f), held, 0.01, "grace expires")
+
+
+func test_loop_encloses_and_short_circuits() -> void:
+	var sim := make_sim()
+	var inside := sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(460, 900))
+	inside.life = 999.0
+	# Up 400, right 200, down 200, left 300: closes a loop around (460, 900).
+	draw_path(sim, [Vector2(360, 800), Vector2(560, 800), Vector2(560, 1000), Vector2(260, 1000)])
+	assert_eq(sim.stats.loops, 1, "loop registered")
+	assert_eq(inside.state, FuseSim.FwState.ENCLOSED, "firework enclosed")
+	sim.extend(0, Vector2(100, 1000))
+	run_until_over(sim)
+	assert_eq(inside.state, FuseSim.FwState.EXPLODED, "short circuit ignited it")
+	assert_eq(sim.stats.loop_ignitions, 1, "counted as loop ignition")
+
+
+func test_blast_danger_marks_other_sections_only() -> void:
+	var sim := make_sim()
+	var banger := sim._add_firework(FuseSim.Kind.BANGER, Vector2(360, 1100))
+	draw_path(sim, [Vector2(360, 700), Vector2(470, 700), Vector2(470, 1150)])
+	assert_eq(banger.state, FuseSim.FwState.ARMED, "armed")
+	var f := sim.fuses[0]
+	var bangers := sim.armed_bangers()
+	assert_false(sim.in_blast_danger(f, banger.fuse_idx + 1, bangers), "own exit is safe")
+	var found := false
+	for i in range(banger.fuse_idx + 30, f.size()):
+		if sim.in_blast_danger(f, i, bangers):
+			found = true
+	assert_true(found, "returning section passes through the blast")
+
+
+func test_ignition_flings_fire_forward() -> void:
+	var sim := make_sim({"ignite_jump": [64.0, 64.0, 64.0]})
+	var fw := sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 1100))
+	draw_path(sim, [Vector2(360, 700)])
+	var f := sim.fuses[0]
+	var jumped := [false]
+	sim.fire_jumped.connect(func(_a, _b): jumped[0] = true)
+	while fw.state != FuseSim.FwState.EXPLODED and not sim.over:
+		sim.step(1.0 / 60.0)
+	assert_true(jumped[0], "fire jumped")
+	var j := fw.fuse_idx + 8
+	assert_eq(f.burnt[j], 1, "point one jump ahead is burning")
+	assert_eq(f.burnt[j + 6], 0, "beyond the jump still unburnt")
+
+
+func test_ignition_jump_can_catch_a_close_head() -> void:
+	var sim := make_sim({"ignite_jump": [0.0, 32.0, 96.0]})
+	sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 1100))
+	draw_path(sim, [Vector2(360, 1060)])  # hot: head only 40 px past the firework  # head only 40 px past the firework
+	run_until_over(sim)
+	assert_true(sim.time < base_cfg.spark_delay + 140.0 / base_cfg.spark_speed_base, "caught by the jump, earlier than by the spark")

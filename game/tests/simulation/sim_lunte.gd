@@ -1,7 +1,11 @@
 extends SceneTree
-## Headless balancing simulation for LUNTE.
+## Headless balancing simulation for LUNTE with decoupled bot profiles and an
+## automatic check of the acceptance criteria B1-B4 (docs/decisions/0001).
 ## Usage: godot --headless --path game --script res://tests/simulation/sim_lunte.gd -- [rounds] [overrides_json]
-## Prints a JSON summary per bot profile. Simulated bots are NOT human playtests.
+## Simulated bots are NOT human playtests.
+
+const PROFILES := ["g2.2_s300", "g1.3_s300", "g0.75_s300", "g1.3_s230", "g1.3_s400"]
+
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -10,44 +14,47 @@ func _initialize() -> void:
 	var cfg := Config.with_overrides(Config.load_balance("lunte"), overrides)
 	var arena := Rect2(10, 130, 700, 1130)
 	var summary := {}
-	for profile in ["cautious", "normal", "greedy"]:
+	for profile in PROFILES:
 		var rows := []
 		for r in rounds:
 			rows.append(_run_round(cfg, arena, 1000 + r, profile))
 		summary[profile] = _aggregate(rows)
-	print(JSON.stringify({"rounds": rounds, "overrides": overrides, "results": summary}, "  "))
+	var checks := _acceptance(summary)
+	print(JSON.stringify({"rounds": rounds, "overrides": overrides, "results": summary, "acceptance": checks}, "  "))
 	quit()
 
 
 func _run_round(cfg: Dictionary, arena: Rect2, seed_value: int, profile: String) -> Dictionary:
 	var sim := FuseSim.new(cfg, arena, seed_value)
-	var candle := Vector2(arena.get_center().x, arena.end.y - 70)
+	var candle := Vector2(arena.get_center().x, arena.position.y + arena.size.y * 0.62)
 	sim.start(candle)
 	sim.grab(0, candle)
 	var bot := LunteBot.new(sim, profile, seed_value)
 	var dt := 1.0 / 30.0
 	var heat_time := [0.0, 0.0, 0.0, 0.0]
 	# Lambdas capture locals by value, so mutable round state lives in a dictionary.
-	var ctx := {"first_ignite": -1.0, "last_blast": -100.0, "last_junction": -100.0}
+	var ctx := {"first_ignite": -1.0, "last_blast": -100.0, "last_junction": -100.0, "last_dry": -100.0}
 	sim.firework_ignited.connect(func(_fw, _p, _h, _c):
 		if ctx.first_ignite < 0.0:
 			ctx.first_ignite = sim.time)
 	sim.fuse_ignited_by_blast.connect(func(_p): ctx.last_blast = sim.time)
 	sim.junction_created.connect(func(_p): ctx.last_junction = sim.time)
-	var frames := 0
-	while not sim.over and sim.time < 300.0:
+	sim.spool_empty.connect(func(): ctx.last_dry = sim.time)
+	while not sim.over and sim.time < 400.0:
 		sim.extend(0, bot.next_position(dt))
 		sim.step(dt)
 		if sim.time > cfg.spark_delay:
 			heat_time[sim.heat_level()] += dt
-		frames += 1
 	var death := "timeout"
-	if sim.over:
-		# Attribute the catch to a blast or a self-crossing if one happened shortly before.
+	if sim.survived_dawn:
+		death = "dawn"
+	elif sim.over:
 		if sim.time - ctx.last_blast < 3.0:
 			death = "blast"
 		elif sim.time - ctx.last_junction < 6.0:
 			death = "junction"
+		elif sim.time - ctx.last_dry < 8.0:
+			death = "spool"
 		else:
 			death = "chase"
 	return {
@@ -56,12 +63,12 @@ func _run_round(cfg: Dictionary, arena: Rect2, seed_value: int, profile: String)
 		"junctions": sim.stats.junctions, "blast_hits": sim.stats.blast_fuse_hits,
 		"first_ignite": ctx.first_ignite, "death": death,
 		"heat3_share": heat_time[3] / maxf(sim.time, 0.01),
-		"final_speed": sim.speed(),
+		"final_speed": sim.base_speed(), "drawn_px": sim.stats.drawn_px,
 	}
 
 
 func _aggregate(rows: Array) -> Dictionary:
-	var keys := ["time", "score", "ignitions", "best_chain", "threaded", "fizzled", "junctions", "blast_hits", "first_ignite", "heat3_share", "final_speed"]
+	var keys := ["time", "score", "ignitions", "best_chain", "threaded", "fizzled", "junctions", "blast_hits", "first_ignite", "heat3_share", "final_speed", "drawn_px"]
 	var out := {}
 	for k in keys:
 		var vals: Array = rows.map(func(r): return float(r[k]))
@@ -74,4 +81,27 @@ func _aggregate(rows: Array) -> Dictionary:
 	for r in rows:
 		deaths[r.death] = deaths.get(r.death, 0) + 1
 	out["deaths"] = deaths
+	out["n"] = rows.size()
 	return out
+
+
+func _acceptance(s: Dictionary) -> Dictionary:
+	var cautious: float = s["g2.2_s300"].time.median
+	var greedy: float = s["g0.75_s300"].time.median
+	var slow: float = s["g1.3_s230"].score.median
+	var fast: float = s["g1.3_s400"].score.median
+	var blast := 0
+	var total := 0
+	var min_t := INF
+	var max_t := 0.0
+	for p in s:
+		blast += int(s[p].deaths.get("blast", 0))
+		total += int(s[p].n)
+		min_t = minf(min_t, s[p].time.median)
+		max_t = maxf(max_t, s[p].time.median)
+	return {
+		"B1_greed_costs": {"greedy_vs_cautious_time": snappedf(greedy / cautious, 0.001), "pass": greedy <= cautious * 0.85},
+		"B2_motor_not_dominant": {"score_ratio_400_vs_230": snappedf(fast / maxf(slow, 1.0), 0.001), "pass": fast <= slow * 1.6},
+		"B3_blast_deaths": {"share": snappedf(float(blast) / total, 0.001), "pass": float(blast) / total < 0.15},
+		"B4_round_length": {"median_min": min_t, "median_max": max_t, "pass": min_t >= 45.0 and max_t <= 150.0},
+	}
