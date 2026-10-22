@@ -1,0 +1,121 @@
+class_name SettingsMenu
+extends Control
+## Settings overlay: audio volumes, mute, haptics, effect intensity, control
+## mode, touch debug, privacy. Every change is saved immediately.
+
+signal closed
+
+const CONTROL_MODES := ["direct", "offset", "relative"]
+const CONTROL_NAMES := {"direct": "Direkt (Finger = Lunte)", "offset": "Versatz (Lunte über dem Finger)", "relative": "Relativ (wie ein Touchpad)"}
+
+
+func _ready() -> void:
+	theme = UiTheme.get_theme()
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(dim)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 32
+	scroll.offset_right = -32
+	scroll.offset_top = 80
+	scroll.offset_bottom = -40
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+	box.add_child(UiTheme.label("Einstellungen", 52, UiTheme.TEXT, true))
+	box.add_child(_slider("Gesamtlautstärke", "master_volume"))
+	box.add_child(_slider("Musik", "music_volume"))
+	box.add_child(_slider("Effekte", "sfx_volume"))
+	box.add_child(_toggle("Stumm", "muted"))
+	box.add_child(_toggle("Vibration", "haptics"))
+	box.add_child(_effects_row())
+	box.add_child(_control_row())
+	box.add_child(_toggle("Touch-Anzeige (Test)", "touch_debug"))
+	var privacy := UiTheme.button("Datenschutz & Werbung")
+	privacy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	privacy.pressed.connect(_show_privacy)
+	box.add_child(privacy)
+	var back := UiTheme.primary_button("Fertig")
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(func():
+		closed.emit()
+		queue_free())
+	box.add_child(back)
+
+
+func _save() -> SaveStore:
+	return get_node("/root/Save") as SaveStore
+
+
+func _slider(text: String, key: String) -> Control:
+	var col := VBoxContainer.new()
+	col.add_child(UiTheme.label(text, 28, UiTheme.TEXT_DIM))
+	var s := HSlider.new()
+	s.min_value = 0.0
+	s.max_value = 1.0
+	s.step = 0.05
+	s.custom_minimum_size = Vector2(0, 56)
+	s.value = float(_save().get_setting(key))
+	s.value_changed.connect(func(v):
+		_save().set_setting(key, v)
+		_audio_changed())
+	col.add_child(s)
+	return col
+
+
+func _toggle(text: String, key: String) -> Control:
+	var c := CheckButton.new()
+	c.text = text
+	c.custom_minimum_size = Vector2(0, 72)
+	c.button_pressed = bool(_save().get_setting(key))
+	c.toggled.connect(func(on):
+		_save().set_setting(key, on)
+		if key == "haptics":
+			Haptics.enabled = on
+		_audio_changed())
+	return c
+
+
+func _effects_row() -> Control:
+	var b := UiTheme.button("")
+	var names := {1.0: "Effekte: voll", 0.5: "Effekte: reduziert", 0.0: "Effekte: minimal"}
+	var cur := float(_save().get_setting("effects"))
+	b.text = names.get(cur, "Effekte: voll")
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.pressed.connect(func():
+		var order := [1.0, 0.5, 0.0]
+		var v := float(_save().get_setting("effects"))
+		var nxt: float = order[(order.find(v) + 1) % order.size()]
+		_save().set_setting("effects", nxt)
+		b.text = names[nxt])
+	return b
+
+
+func _control_row() -> Control:
+	var b := UiTheme.button("")
+	var cur: String = _save().get_setting("control_mode")
+	b.text = "Steuerung: " + CONTROL_NAMES.get(cur, cur)
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.pressed.connect(func():
+		var v: String = _save().get_setting("control_mode")
+		var nxt: String = CONTROL_MODES[(CONTROL_MODES.find(v) + 1) % CONTROL_MODES.size()]
+		_save().set_setting("control_mode", nxt)
+		b.text = "Steuerung: " + CONTROL_NAMES[nxt])
+	return b
+
+
+func _audio_changed() -> void:
+	var audio := get_node_or_null("/root/Audio")
+	if audio:
+		audio.apply_settings()
+
+
+func _show_privacy() -> void:
+	var p := PrivacyPanel.new()
+	add_child(p)

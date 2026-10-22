@@ -1,0 +1,57 @@
+class_name AdPolicy
+extends RefCounted
+## Pure decision logic for interstitial frequency (no SDK, fully testable).
+##
+## Conservative defaults from the brief: never in the first rounds of a
+## session, at most one interstitial per N finished rounds, never more often
+## than every few minutes, never mid-round, never on app resume, and never
+## when ads are disabled (debug switch) or consent is pending.
+
+var min_rounds_before_first := 3
+var rounds_between := 4
+var min_seconds_between := 180.0
+var enabled := true
+
+var _rounds_since_last := 0
+var _rounds_this_session := 0
+var _last_shown_at := -1.0e9  # seconds (monotonic clock supplied by caller)
+
+
+func configure(cfg: Dictionary) -> void:
+	min_rounds_before_first = int(cfg.get("min_rounds_before_first", min_rounds_before_first))
+	rounds_between = int(cfg.get("rounds_between", rounds_between))
+	min_seconds_between = float(cfg.get("min_seconds_between", min_seconds_between))
+	enabled = bool(cfg.get("interstitials_enabled", enabled))
+
+
+## Call once per finished round (game over / dawn), not on restarts or quits.
+func on_round_finished() -> void:
+	_rounds_since_last += 1
+	_rounds_this_session += 1
+
+
+## Natural break check, e.g. when the player leaves the results screen.
+## consent_ready: the consent flow has completed (granted or not).
+func should_show_interstitial(now_sec: float, consent_ready: bool) -> bool:
+	if not enabled or not consent_ready:
+		return false
+	if _rounds_this_session < min_rounds_before_first:
+		return false
+	if _rounds_since_last < rounds_between:
+		return false
+	if now_sec - _last_shown_at < min_seconds_between:
+		return false
+	return true
+
+
+func on_interstitial_shown(now_sec: float) -> void:
+	_rounds_since_last = 0
+	_last_shown_at = now_sec
+
+
+## Ratio of rounds with an ad in a steady stream of rounds of given length
+## (used to document the worst-case ad load).
+func worst_case_ads_per_hour(round_seconds: float) -> float:
+	var by_rounds := 3600.0 / (round_seconds * rounds_between)
+	var by_time := 3600.0 / min_seconds_between
+	return minf(by_rounds, by_time)
