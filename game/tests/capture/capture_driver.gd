@@ -8,8 +8,10 @@ var profile := "normal"
 var seed_value := 7
 var game: Node
 var bot: LunteBot
+var echo_bot: EchoBot
 var down := false
 var wait := 0.0
+var finger := Vector2(360, 1000)
 
 
 func _ready() -> void:
@@ -28,6 +30,9 @@ func _ready() -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if game.sim is EchoSim:
+		_drive_echo(dt)
+		return
 	var sim: FuseSim = game.sim
 	if bot == null or bot.sim != sim:
 		bot = LunteBot.new(sim, profile, seed_value)
@@ -40,16 +45,20 @@ func _physics_process(dt: float) -> void:
 		if down:
 			_touch(0, sim.fuses[0].head(), false)
 			down = false
+		if sim.finished == false:
+			return
 		wait = 2.5
 		await get_tree().create_timer(2.0).timeout
 		_touch(0, Vector2(360, 600), true)
 		_touch(0, Vector2(360, 600), false)
 		return
+	# In offset mode the fingertip sits below the fuse head.
+	var off: Vector2 = game.OFFSET if "control_mode" in game and game.control_mode == "offset" else Vector2.ZERO
 	var p := bot.next_position(dt)
 	if not down:
-		_touch(0, sim.fuses[0].head(), true)
+		_touch(0, sim.fuses[0].head() - off, true)
 		down = true
-	_drag(0, p)
+	_drag(0, p - off)
 
 
 func _xf(p: Vector2) -> Vector2:
@@ -62,6 +71,7 @@ func _touch(i: int, p: Vector2, pressed: bool) -> void:
 	e.position = _xf(p)
 	e.pressed = pressed
 	Input.parse_input_event(e)
+	Input.flush_buffered_events()
 
 
 func _drag(i: int, p: Vector2) -> void:
@@ -69,3 +79,53 @@ func _drag(i: int, p: Vector2) -> void:
 	e.index = i
 	e.position = _xf(p)
 	Input.parse_input_event(e)
+	Input.flush_buffered_events()
+
+
+## ECHO: plan with EchoBot, steer the light with real relative drags, bank by
+## tapping the actual button.
+func _drive_echo(_dt: float) -> void:
+	var sim: EchoSim = game.sim
+	if wait > 0.0:
+		wait -= _dt
+		return
+	if echo_bot == null or echo_bot.sim != sim:
+		echo_bot = EchoBot.new(sim, profile if profile in ["perfect", "early", "solo", "sector"] else "early", 380.0)
+	match sim.state:
+		"over":
+			if down:
+				_touch(0, finger, false)
+				down = false
+			wait = 2.5
+			_touch(0, Vector2(360, 700), true)
+			_touch(0, Vector2(360, 700), false)
+		"between":
+			if down:
+				_touch(0, finger, false)
+				down = false
+			wait = 1.2
+			if echo_bot.should_bank():
+				var c: Vector2 = game.bank_button.get_global_rect().get_center()
+				_touch(0, c, true)
+				_touch(0, c, false)
+			else:
+				_start_drag()
+		"ready":
+			echo_bot.prepare_run()
+			_start_drag()
+		"running":
+			if not down:
+				_start_drag()
+			var d := echo_bot.delta() / float(game.cfg.relative_gain)
+			finger += d
+			_drag(0, finger)
+
+
+func _start_drag() -> void:
+	if not down:
+		finger = Vector2(360, 1000)
+		_touch(0, finger, true)
+		down = true
+	for k in 3:
+		finger += Vector2(0, -6)
+		_drag(0, finger)

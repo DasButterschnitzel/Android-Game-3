@@ -4,6 +4,7 @@ extends Node2D
 
 var sim: FuseSim
 var t := 0.0
+var cursor_offset := Vector2.ZERO
 var popups: Array = []  # {pos, text, age, color, size}
 
 const COL_BG_TOP := Color("#0a0c1c")
@@ -35,12 +36,22 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var vr := get_viewport_rect()
+	# The sky brightens towards dawn (night progress), a visible session budget.
+	var dawn := sim.night_progress() if sim else 0.0
+	var top := COL_BG_TOP.lerp(Color("#3a4a7a"), dawn * dawn)
+	var bottom := COL_BG_BOTTOM.lerp(Color("#d9825b"), pow(dawn, 3.0))
 	draw_polygon(PackedVector2Array([vr.position, Vector2(vr.end.x, vr.position.y), vr.end, Vector2(vr.position.x, vr.end.y)]),
-		PackedColorArray([COL_BG_TOP, COL_BG_TOP, COL_BG_BOTTOM, COL_BG_BOTTOM]))
+		PackedColorArray([top, top, bottom, bottom]))
 	if sim == null:
 		return
+	for lp in sim.loops:
+		if not lp.fired and lp.fw_ids.size() > 0:
+			draw_colored_polygon(lp.polygon, Color(1, 0.9, 0.4, 0.07 + 0.03 * sin(t * 6.0)))
+	var bangers := sim.armed_bangers()
 	for f in sim.fuses:
 		_draw_fuse(f)
+		_draw_danger(f, bangers)
+		_draw_jump_zones(f)
 	for fw in sim.fireworks:
 		_draw_firework(fw)
 	for r in sim.rockets:
@@ -108,14 +119,37 @@ func _draw_run(run: PackedVector2Array, cols: PackedColorArray, burnt: int) -> v
 		draw_polyline(run, COL_FUSE, 4.0, true)
 
 
+## Unburnt fuse that an armed banger's blast would light glows red.
+func _draw_danger(f: FuseSim.Fuse, bangers: Array[FuseSim.Firework]) -> void:
+	if bangers.is_empty():
+		return
+	for i in f.size():
+		if sim.in_blast_danger(f, i, bangers):
+			draw_circle(f.pts[i], 5.0, Color(1, 0.2, 0.15, 0.55 + 0.35 * sin(t * 12.0)))
+
+
+## After every threaded firework the fire will jump forward when it ignites;
+## the zone (depends on current heat) is shown as small sparks on the fuse.
+func _draw_jump_zones(f: FuseSim.Fuse) -> void:
+	if not f.alive:
+		return
+	var n := sim.jump_points_for(f)
+	if n <= 0:
+		return
+	for fw in sim.fireworks:
+		if fw.state == FuseSim.FwState.ARMED and fw.fuse_id == f.id:
+			for k in range(1, n + 1, 2):
+				var i := fw.fuse_idx + k
+				if i < f.size() and f.burnt[i] == 0:
+					draw_circle(f.pts[i], 3.0, Color(1, 0.85, 0.4, 0.5))
+
+
 func _draw_firework(fw: FuseSim.Firework) -> void:
 	var c: Color = KIND_COL[fw.kind]
 	match fw.state:
 		FuseSim.FwState.EXPLODED:
-			var a := clampf(1.0 - fw.age * 0.0, 0.0, 1.0)
 			return
 		FuseSim.FwState.FIZZLED:
-			var k := clampf(1.0 - (fw.age - (fw.max_life)) / 1.0, 0.0, 1.0)
 			draw_circle(fw.pos, fw.radius * 0.6, Color(0.4, 0.4, 0.45, 0.5))
 			return
 	var pulse := 1.0
@@ -141,6 +175,8 @@ func _draw_firework(fw: FuseSim.Firework) -> void:
 	if fw.state == FuseSim.FwState.WAITING:
 		var frac := clampf(fw.life / fw.max_life, 0.0, 1.0)
 		draw_arc(fw.pos, fw.radius + 7, -PI / 2, -PI / 2 + TAU * frac, 32, Color(1, 1, 1, 0.55), 3.0, true)
+	elif fw.state == FuseSim.FwState.ENCLOSED:
+		draw_arc(fw.pos, fw.radius + 8 + 3 * sin(t * 8.0), 0, TAU, 32, Color(1, 0.95, 0.5, 0.9), 3.0, true)
 	else:
 		draw_arc(fw.pos, fw.radius + 6, 0, TAU, 32, Color(1, 0.9, 0.6, 0.9), 3.0, true)
 
@@ -155,6 +191,9 @@ func _draw_heads() -> void:
 		if f.pointer_id == -1:
 			var r := 46.0 + 8.0 * sin(t * 6.0)
 			draw_arc(h, r, 0, TAU, 40, Color(1, 1, 1, 0.7), 3.0, true)
+		elif cursor_offset != Vector2.ZERO:
+			# Faint tether from the (hidden) fingertip to the visible head.
+			draw_line(h, h - cursor_offset, Color(1, 1, 1, 0.18), 2.0, true)
 		draw_circle(h, 9, hc)
 		if heat >= 2 and f.lit:
 			draw_arc(h, 24 + 3 * sin(t * 20.0), 0, TAU, 32, Color(hc, 0.8), 3.0, true)

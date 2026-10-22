@@ -1,0 +1,22 @@
+{
+  "_comment": "ECHO prototype balancing. px on 720-wide base viewport, seconds.",
+  "run_seconds": 8.0,
+  "max_runs": 6,
+  "run_multipliers": [6.0, 4.0, 3.0, 2.0, 1.5, 1.0],
+  "core_lives": 5,
+  "waves_per_round": 5,
+  "core_y": 0.36,
+  "core_radius": 40.0,
+  "start_below_core": 260.0,
+  "hit_radius": 38.0,
+  "max_light_speed": 900.0,
+  "relative_gain": 1.4,
+  "enemy_speed": 120.0,
+  "wave_base": 4,
+  "wave_growth": 2,
+  "wave_max": 12,
+  "twin_from_wave": 1,
+  "armor_from_wave": 2,
+  "twin_window": 0.35,
+  "points": {"normal": 10, "twin": 15, "armor": 25}
+}

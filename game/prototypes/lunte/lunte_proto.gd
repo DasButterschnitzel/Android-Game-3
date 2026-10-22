@@ -19,10 +19,15 @@ var round_index := 0
 var over_time := -1.0
 var paused := false
 var seed_override := -1  # set by capture/demo tools for reproducible rounds
-## "direct": the finger is the fuse head. "relative": touch anywhere, finger
+## "direct": the finger is the fuse head. "offset": the head sits above the
+## fingertip so the hand does not hide it. "relative": touch anywhere, finger
 ## movement is applied to the head like a trackpad (no occlusion, one-handed).
-var control_mode := "direct"
+var control_mode := "offset"
+const MODES := ["direct", "offset", "relative"]
+const MODE_NAMES := {"direct": "Direkt", "offset": "Versatz", "relative": "Relativ"}
 const RELATIVE_GAIN := 1.35
+const OFFSET := Vector2(0, -64)
+var hud: Control
 var _virtual := {}  # pointer id -> virtual head position (relative mode)
 var mode_button: Button
 
@@ -55,6 +60,11 @@ func _build_hud() -> void:
 	over_label = _label(layer, Vector2(0, 0), 40)
 	over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_label.visible = false
+	hud = Control.new()
+	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.draw.connect(_draw_hud)
+	layer.add_child(hud)
 	debug_overlay = TouchDebugOverlay.new()
 	debug_overlay.tracker_path = tracker.get_path()
 	debug_overlay.visible = false
@@ -86,13 +96,41 @@ func _build_hud() -> void:
 
 
 func _toggle_mode() -> void:
-	control_mode = "relative" if control_mode == "direct" else "direct"
+	control_mode = MODES[(MODES.find(control_mode) + 1) % MODES.size()]
 	_update_mode_button()
 	tracker.cancel_all()
 
 
 func _update_mode_button() -> void:
-	mode_button.text = "Direkt" if control_mode == "direct" else "Relativ"
+	mode_button.text = MODE_NAMES[control_mode]
+
+
+## Top HUD: spool bar (fuse left to draw) and gap bar (seconds until the fire
+## reaches the head, coloured by heat). Shown at the top because the drawing
+## hand usually covers the lower part of the screen.
+func _draw_hud() -> void:
+	if sim == null:
+		return
+	var w := hud.size.x
+	var x0 := 24.0
+	var bw := w - 48.0
+	# Spool.
+	var spool_frac := clampf(sim.spool / float(cfg.spool_max), 0.0, 1.0)
+	var low := sim.spool < 300.0
+	var spool_col := Color("#ffb347") if not low else Color(1, 0.35, 0.3, 0.6 + 0.4 * sin(Time.get_ticks_msec() / 90.0))
+	hud.draw_rect(Rect2(x0, 112, bw, 10), Color(1, 1, 1, 0.12))
+	hud.draw_rect(Rect2(x0, 112, bw * spool_frac, 10), spool_col)
+	# Gap (0..3 s) with heat thresholds.
+	var gap := minf(sim.gap_time(), 3.0) if sim.gap_time() != INF else 3.0
+	var heat := sim.heat_level() if sim.time > cfg.spark_delay else 1
+	var gcol: Color = [Color("#9ad1ff"), Color("#ffb347"), Color("#ff4b4b")][heat - 1]
+	hud.draw_rect(Rect2(x0, 128, bw, 6), Color(1, 1, 1, 0.10))
+	hud.draw_rect(Rect2(x0, 128, bw * gap / 3.0, 6), gcol)
+	for t in [cfg.heat3_gap, cfg.heat2_gap]:
+		hud.draw_line(Vector2(x0 + bw * t / 3.0, 124), Vector2(x0 + bw * t / 3.0, 138), Color(1, 1, 1, 0.5), 2.0)
+	# Night progress: a small moon travelling along the top edge.
+	var np := sim.night_progress()
+	hud.draw_circle(Vector2(x0 + bw * np, 100), 5.0, Color(1, 0.95, 0.75, 0.9))
 
 
 func _label(parent: Node, pos: Vector2, size: int) -> Label:
@@ -110,8 +148,9 @@ func arena() -> Rect2:
 
 
 func candle_pos() -> Vector2:
+	# Middle third: away from the Android home-gesture area at the bottom edge.
 	var a := arena()
-	return Vector2(a.get_center().x, a.end.y - 70)
+	return Vector2(a.get_center().x, a.position.y + a.size.y * 0.62)
 
 
 func _new_round() -> void:
@@ -129,9 +168,23 @@ func _new_round() -> void:
 		board.popup(pos + Vector2(0, -46), "2. Finger!", Color("#b48cff"), 30)
 		fx.emit_burst(pos, 40, Color("#b48cff"), 60, 260, 0.8, 4.0))
 	sim.finale_started.connect(func(n):
-		if n > 0:
+		if n > 0 and not sim.survived_dawn:
 			hint_label.text = "FINALE!"
 			hint_label.visible = true)
+	sim.dawn.connect(func():
+		hint_label.text = "MORGENGRAUEN!"
+		hint_label.visible = true)
+	sim.spool_empty.connect(func():
+		board.popup(sim.fuses[0].head() + Vector2(0, -60), "Lunte leer!", Color(1, 0.5, 0.4), 30))
+	sim.short_circuit.connect(func(pos, n):
+		board.popup(pos + Vector2(0, -50), "KURZSCHLUSS ×%d" % n, Color(1, 0.95, 0.5), 34)
+		fx.emit_burst(pos, 80, Color(1, 0.9, 0.4), 100, 420, 0.9, 4.0)
+		shake = maxf(shake, 10.0))
+	sim.loop_closed.connect(func(_id, n):
+		if n > 0:
+			board.popup(sim.fuses[0].head() + Vector2(0, -60), "Schleife: %d eingeschlossen" % n, Color(1, 0.95, 0.6), 26))
+	sim.fire_jumped.connect(func(a, b):
+		fx.emit_burst(b, 14, Color(1, 0.6, 0.2), 40, 160, 0.4, 3.0))
 	sim.game_over.connect(_on_game_over)
 	sim.start(candle_pos())
 	board.sim = sim
@@ -155,12 +208,15 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	hud.queue_redraw()
 	shake = maxf(shake - delta * 30.0, 0.0)
 	board.position = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
 	fx.position = board.position
 	score_label.text = "%d" % sim.score
 	var heat := sim.heat_level() if sim.time > cfg.spark_delay else 1
-	heat_label.text = "Hitze ×%d   Tempo %d   Kette %d" % [heat, int(sim.speed()), sim.chain]
+	var heat_pts: Array = cfg.heat_points
+	heat_label.text = "Hitze ×%s   Kette %d   %s" % [str(heat_pts[heat - 1]), sim.chain, MODE_NAMES[control_mode]]
+	board.cursor_offset = OFFSET if control_mode == "offset" else Vector2.ZERO
 	var vr := get_viewport_rect()
 	hint_label.position = Vector2(0, vr.size.y * 0.45)
 	hint_label.size = Vector2(vr.size.x, 60)
@@ -183,13 +239,11 @@ func _on_down(p: PointerTracker.Pointer) -> void:
 		return
 	if control_mode == "relative":
 		# Any touch takes the first free fuse; movement is applied relatively.
-		for f in sim.fuses:
-			if f.alive and f.pointer_id == -1:
-				f.pointer_id = p.id
-				_virtual[p.id] = f.head()
-				return
+		var fid := sim.grab_any(p.id)
+		if fid >= 0:
+			_virtual[p.id] = sim.fuses[fid].head()
 		return
-	if sim.grab(p.id, p.pos) < 0:
+	if sim.grab(p.id, _finger_target(p.pos)) < 0:
 		# Show where to continue.
 		for f in sim.fuses:
 			if f.alive:
@@ -206,7 +260,13 @@ func _on_move(p: PointerTracker.Pointer) -> void:
 		_virtual[p.id] = v
 		sim.extend(p.id, v)
 		return
-	sim.extend(p.id, p.pos)
+	sim.extend(p.id, _finger_target(p.pos))
+
+
+## Where the fuse head should be for a finger position (offset mode lifts it
+## above the fingertip so the hand does not cover the head).
+func _finger_target(pos: Vector2) -> Vector2:
+	return pos + OFFSET if control_mode == "offset" else pos
 
 
 func _on_up(p: PointerTracker.Pointer) -> void:
@@ -240,7 +300,8 @@ func _on_caught(_fid: int, pos: Vector2) -> void:
 func _on_game_over(score: int) -> void:
 	best = maxi(best, score)
 	over_time = Time.get_ticks_msec() / 1000.0
-	over_label.text = "Eingeholt!\n%d Punkte\nBestwert %d\nZündungen %d · beste Kette %d\n\nTippen für neue Runde" % [score, best, sim.ignitions, sim.best_chain]
+	var title := "Morgengrauen!" if sim.survived_dawn else "Eingeholt!"
+	over_label.text = "%s\n%d Punkte\nBestwert %d\nZündungen %d · beste Kette %d\n\nTippen für neue Runde" % [title, score, best, sim.ignitions, sim.best_chain]
 	over_label.visible = true
 	hint_label.visible = false
 	tracker.cancel_all()

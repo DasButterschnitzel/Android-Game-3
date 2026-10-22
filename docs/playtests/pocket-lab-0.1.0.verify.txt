@@ -1,0 +1,26 @@
+# Verification of pocket-lab-0.1.0-debug.apk
+size_bytes: 57729949
+sha256: d794586b39a4d7d5d52ef777d3692fb3530caa61f7f34bda34a2d43ccfb941d3
+
+## aapt2 dump badging
+package: name='io.github.dasbutterschnitzel.pocketlab' versionCode='10' versionName='0.1.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+application-label:'Pocket Lab'
+application: label='Pocket Lab' icon='res/mipmap-anydpi-v26/icon.xml'
+native-code: 'arm64-v8a' 'armeabi-v7a'
+
+## permissions
+package: io.github.dasbutterschnitzel.pocketlab
+
+## apksigner verify
+Signer #1 certificate DN: CN=Android Debug, O=Android, C=US
+Signer #1 certificate SHA-256 digest: 26a6dc565069520add36bb1444579522fa37209a35cc811ee8974f793ba84f94
+Signer #1 certificate SHA-1 digest: 5f8c4b36a0e22555876de734faaa00642928ae27
+Signer #1 certificate MD5 digest: a089dade295139df35e1f9744ac4156e
+
+## native libs
+  1374336  2026-10-22 22:40   lib/arm64-v8a/libc++_shared.so
+ 76181608  2026-10-22 22:40   lib/arm64-v8a/libgodot_android.so
+   963028  2026-10-22 22:40   lib/armeabi-v7a/libc++_shared.so
+ 82451424  2026-10-22 22:40   lib/armeabi-v7a/libgodot_android.so

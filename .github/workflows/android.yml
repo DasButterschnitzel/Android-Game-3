@@ -44,6 +44,9 @@ jobs:
       - name: Unit and integration tests
         run: timeout 600 "$GODOT" --headless --path game --script res://tests/run_tests.gd
 
+      - name: Smoke test exported build (Linux, same packing as Android)
+        run: bash tools/smoke_exported.sh
+
       - name: Export debug APK
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
