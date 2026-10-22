@@ -74,23 +74,35 @@ func _draw_fuse(f: FuseSim.Fuse) -> void:
 	var n := f.size()
 	if n < 2:
 		return
+	var fade: float = sim.cfg.get("ash_fade", 5.0)
 	var run := PackedVector2Array()
+	var cols := PackedColorArray()
 	var state := f.burnt[0]
 	run.append(f.pts[0])
+	cols.append(_ash_col(f, 0, fade))
 	for i in range(1, n):
 		var b := f.burnt[i]
 		run.append(f.pts[i])
+		cols.append(_ash_col(f, i, fade))
 		if b != state or i == n - 1:
-			_draw_run(run, state)
+			_draw_run(run, cols, state)
 			run = PackedVector2Array([f.pts[i]])
+			cols = PackedColorArray([_ash_col(f, i, fade)])
 			state = b
 
 
-func _draw_run(run: PackedVector2Array, burnt: int) -> void:
+func _ash_col(f: FuseSim.Fuse, i: int, fade: float) -> Color:
+	if f.burnt[i] == 0:
+		return COL_FUSE
+	var age := sim.time - f.burn_t[i]
+	return Color(COL_ASH, clampf(1.0 - age / fade, 0.0, 1.0))
+
+
+func _draw_run(run: PackedVector2Array, cols: PackedColorArray, burnt: int) -> void:
 	if run.size() < 2:
 		return
 	if burnt == 1:
-		draw_polyline(run, COL_ASH, 3.0, true)
+		draw_polyline_colors(run, cols, 3.0, true)
 	else:
 		draw_polyline(run, COL_FUSE_GLOW, 14.0, true)
 		draw_polyline(run, COL_FUSE, 4.0, true)
@@ -123,6 +135,9 @@ func _draw_firework(fw: FuseSim.Firework) -> void:
 			draw_colored_polygon(PackedVector2Array([tip, tip - fw.dir * 14 + fw.dir.orthogonal() * 8, tip - fw.dir * 14 - fw.dir.orthogonal() * 8]), c)
 		FuseSim.Kind.BANGER:
 			draw_circle(fw.pos, fw.radius * 0.3, c)
+		FuseSim.Kind.SPLITTER:
+			draw_line(fw.pos + Vector2(0, 8), fw.pos + Vector2(-9, -8), c, 3.0, true)
+			draw_line(fw.pos + Vector2(0, 8), fw.pos + Vector2(9, -8), c, 3.0, true)
 	if fw.state == FuseSim.FwState.WAITING:
 		var frac := clampf(fw.life / fw.max_life, 0.0, 1.0)
 		draw_arc(fw.pos, fw.radius + 7, -PI / 2, -PI / 2 + TAU * frac, 32, Color(1, 1, 1, 0.55), 3.0, true)

@@ -22,6 +22,8 @@ signal blast(pos: Vector2, radius: float)
 signal junction_created(pos: Vector2)
 signal fuse_ignited_by_blast(pos: Vector2)
 signal head_caught(fuse_id: int, pos: Vector2)
+signal branch_created(fuse_id: int, pos: Vector2)
+signal finale_started(count: int)
 signal game_over(score: int)
 
 const STEP := 8.0
@@ -52,7 +54,9 @@ class Fuse:
 	var junctions := {}  # point idx -> Array[Vector2i(fuse_id, idx)]
 	var alive := true  # false once fire reached the head
 	var pointer_id := -1  # finger currently drawing this fuse (-1 = lifted)
-	var lit := false  # spark started
+	var lit := false  # player has started drawing it
+	var ignite_at := -1.0  # branch fuses: sim time when fire enters (delayed start)
+	var burn_t := PackedFloat32Array()  # sim time each point burnt (ash fading)
 
 	func head() -> Vector2:
 		return pts[pts.size() - 1]
@@ -92,9 +96,13 @@ var ignitions := 0
 var best_chain := 0
 var chain := 0
 var last_ignite_time := -100.0
-var over := false
+var over := false  # every head has been caught
+var finished := false  # finale done; final score is known
 var started := false
-var stats := {"threaded": 0, "fizzled": 0, "junctions": 0, "blast_fuse_hits": 0, "max_heat": 1}
+var finale_queue: Array[Firework] = []
+var _finale_timer := 0.0
+var _in_finale := false
+var stats := {"threaded": 0, "fizzled": 0, "junctions": 0, "blast_fuse_hits": 0, "max_heat": 1, "branches": 0, "twin_ignitions": 0, "finale_points": 0}
 
 var _grid := {}  # Vector2i -> Array[Vector2i(fuse_id, seg_start_idx)]
 var _next_fw_id := 1
@@ -122,6 +130,7 @@ func start(candle: Vector2) -> void:
 	f.id = 0
 	f.pts.append(candle)
 	f.burnt.append(0)
+	f.burn_t.append(0.0)
 	fuses.append(f)
 	started = true
 	_spawn_opening_fireworks(candle)
@@ -165,7 +174,7 @@ func extend(pointer_id: int, pos: Vector2) -> void:
 	var n := int(d / STEP)
 	for k in range(1, n + 1):
 		_add_point(f, from + dir * STEP * k)
-	if f.id == 0 and not f.lit:
+	if not f.lit:
 		f.lit = true
 
 
@@ -180,6 +189,7 @@ func _add_point(f: Fuse, p: Vector2) -> void:
 	var i := f.pts.size()
 	f.pts.append(p)
 	f.burnt.append(0)
+	f.burn_t.append(0.0)
 	var a := f.pts[i - 1]
 	# Self/other crossings against existing unburnt segments create junctions.
 	for cand in _query_segments(a, p):
@@ -260,14 +270,23 @@ func min_unburnt_distance(pos: Vector2, radius: float) -> float:
 # --- simulation step --------------------------------------------------------
 
 func step(dt: float) -> void:
-	if over or not started:
+	if finished or not started:
 		return
 	var main := fuses[0]
 	if not main.lit:
 		return  # nothing happens until the first stroke
 	time += dt
+	if over:
+		_advance_finale(dt)
+		_advance_rockets(dt)
+		return
 	if sparks.is_empty() and time >= cfg.spark_delay and main.burnt[0] == 0:
 		_spawn_spark(0, 0, 1)
+	for f in fuses:
+		if f.ignite_at >= 0.0 and time >= f.ignite_at:
+			f.ignite_at = -1.0
+			if f.burnt[0] == 0:
+				_spawn_spark(f.id, 0, 1)
 	_advance_sparks(dt)
 	_advance_rockets(dt)
 	_update_fireworks(dt)
@@ -283,6 +302,7 @@ func _spawn_spark(fid: int, idx: int, dir: int) -> void:
 	sp.s = idx
 	sp.dir = dir
 	fuses[fid].burnt[idx] = 1
+	fuses[fid].burn_t[idx] = time
 	sparks.append(sp)
 
 
@@ -324,6 +344,7 @@ func _advance_sparks(dt: float) -> void:
 
 func _burn_point(f: Fuse, i: int) -> void:
 	f.burnt[i] = 1
+	f.burn_t[i] = time
 	if f.junctions.has(i):
 		for partner in f.junctions[i]:
 			var of := fuses[partner.x]
@@ -357,13 +378,43 @@ func _check_over() -> void:
 		if f.alive:
 			return
 	over = true
-	game_over.emit(score)
+	# Grand finale: every firework still threaded on the fuse goes off, nearest
+	# to the catch point first. Failure should look spectacular, not punishing.
+	for fw in fireworks:
+		if fw.state == FwState.ARMED:
+			finale_queue.append(fw)
+	finale_queue.sort_custom(func(a, b): return a.fuse_idx > b.fuse_idx)
+	finale_started.emit(finale_queue.size())
+	_finale_timer = 0.35
+
+
+func _advance_finale(dt: float) -> void:
+	_finale_timer -= dt
+	if _finale_timer > 0.0:
+		return
+	if finale_queue.is_empty():
+		if rockets.is_empty():
+			finished = true
+			game_over.emit(score)
+		return
+	_in_finale = true
+	_ignite(finale_queue.pop_front())
+	_in_finale = false
+	_finale_timer = cfg.finale_interval
 
 
 # --- fireworks ---------------------------------------------------------------
 
+## Heat of the hottest fuse (HUD); see heat_for() for a specific fuse.
 func heat_level() -> int:
-	var gap := gap_time()
+	return _heat_from_gap(gap_time())
+
+
+func heat_for(fuse_id: int) -> int:
+	return _heat_from_gap(gap_time_for(fuses[fuse_id]))
+
+
+func _heat_from_gap(gap: float) -> int:
 	if gap < cfg.heat3_gap:
 		return 3
 	if gap < cfg.heat2_gap:
@@ -371,20 +422,34 @@ func heat_level() -> int:
 	return 1
 
 
-## Seconds until the most advanced forward spark reaches the main fuse head.
+## Seconds until fire reaches the closest-threatened head.
 func gap_time() -> float:
 	var best := INF
 	for f in fuses:
-		if not f.alive:
-			continue
-		var front := -1.0
-		for sp in sparks:
-			if sp.fuse_id == f.id and sp.dir > 0:
-				front = maxf(front, sp.s)
-		if front < 0.0:
-			continue
-		best = minf(best, (f.size() - 1 - front) * STEP / speed())
+		best = minf(best, gap_time_for(f))
 	return best
+
+
+## Seconds until the most advanced forward spark reaches this fuse's head.
+func gap_time_for(f: Fuse) -> float:
+	if not f.alive:
+		return INF
+	var front := -1.0
+	for sp in sparks:
+		if sp.fuse_id == f.id and sp.dir > 0:
+			front = maxf(front, sp.s)
+	if front < 0.0:
+		return INF
+	return (f.size() - 1 - front) * STEP / speed()
+
+
+## Number of fuses currently being drawn by a finger.
+func held_count() -> int:
+	var n := 0
+	for f in fuses:
+		if f.alive and f.pointer_id != -1:
+			n += 1
+	return n
 
 
 func _ignite(fw: Firework) -> void:
@@ -398,17 +463,53 @@ func _ignite(fw: Firework) -> void:
 		chain = 1
 	last_ignite_time = time
 	best_chain = maxi(best_chain, chain)
-	var heat := heat_level()
+	var heat := 1
+	var mult := 1.0
+	if _in_finale:
+		mult = cfg.finale_factor
+	else:
+		heat = heat_for(fw.fuse_id) if fw.fuse_id >= 0 and fuses[fw.fuse_id].alive else heat_level()
+		if held_count() >= 2:
+			mult = cfg.twin_bonus
+			stats.twin_ignitions += 1
 	stats.max_heat = maxi(stats.max_heat, heat)
 	var base: int = cfg.points[Kind.keys()[fw.kind].to_lower()]
-	var pts := int(round(base * heat * (1.0 + cfg.chain_bonus * (chain - 1))))
+	var pts := int(round(base * heat * mult * (1.0 + cfg.chain_bonus * (chain - 1))))
 	score += pts
+	if _in_finale:
+		stats.finale_points += pts
 	firework_ignited.emit(fw, pts, heat, chain)
 	match fw.kind:
 		Kind.ROCKET:
 			_launch_rocket(fw)
 		Kind.BANGER:
 			_explode_banger(fw)
+		Kind.SPLITTER:
+			if not over:
+				_split(fw)
+
+
+## The fire splits: a short branch fuse appears at the splitter. A second finger
+## can grab its head and draw it; fire enters it after a short delay.
+func _split(fw: Firework) -> void:
+	var f := Fuse.new()
+	f.id = fuses.size()
+	var p := fw.pos
+	f.pts.append(p)
+	f.burnt.append(0)
+	f.burn_t.append(0.0)
+	fuses.append(f)
+	var dir := fw.dir
+	for k in int(cfg.splitter_stub / STEP):
+		var q := p + dir * STEP * (k + 1)
+		if not arena.grow(-20).has_point(q):
+			dir = -dir
+			q = p + dir * STEP * (k + 1)
+		_add_point(f, q)
+	f.lit = true
+	f.ignite_at = time + cfg.splitter_delay
+	stats.branches += 1
+	branch_created.emit(f.id, f.head())
 
 
 func _launch_rocket(fw: Firework) -> void:
@@ -524,11 +625,15 @@ func _spawn_fireworks(dt: float) -> void:
 
 func _roll_kind() -> int:
 	var w: Dictionary = cfg.kind_weights
+	var unlock: Dictionary = cfg.get("kind_unlock_time", {})
 	var total := 0.0
 	for k in w:
-		total += float(w[k])
+		if time >= float(unlock.get(k, 0.0)):
+			total += float(w[k])
 	var r := rng.randf() * total
 	for k in w:
+		if time < float(unlock.get(k, 0.0)):
+			continue
 		r -= float(w[k])
 		if r <= 0.0:
 			return Kind[k.to_upper()]

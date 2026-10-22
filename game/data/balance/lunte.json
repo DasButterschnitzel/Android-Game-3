@@ -19,7 +19,8 @@
   "spawn_min_head_dist": 150.0,
   "spawn_min_fuse_dist": 40.0,
   "spawn_min_fw_dist": 90.0,
-  "kind_weights": {"fountain": 60, "rocket": 22, "banger": 18},
+  "kind_weights": {"fountain": 58, "rocket": 22, "banger": 16, "splitter": 5},
+  "kind_unlock_time": {"splitter": 25.0},
   "points": {"fountain": 10, "rocket": 15, "banger": 20, "splitter": 15},
   "heat2_gap": 1.6,
   "heat3_gap": 0.8,
@@ -29,5 +30,11 @@
   "rocket_speed": 760.0,
   "rocket_hit_radius": 14.0,
   "banger_radius": 115.0,
-  "banger_own_fuse_factor": 1.6
+  "banger_own_fuse_factor": 1.6,
+  "splitter_stub": 56.0,
+  "splitter_delay": 1.6,
+  "twin_bonus": 1.5,
+  "finale_factor": 0.5,
+  "finale_interval": 0.12,
+  "ash_fade": 5.0
 }

@@ -125,6 +125,13 @@ func _new_round() -> void:
 	sim.junction_created.connect(func(p): fx.emit_burst(p, 6, Color(1, 0.4, 0.2), 30, 90, 0.4, 3))
 	sim.fuse_ignited_by_blast.connect(func(p): board.popup(p, "!", Color(1, 0.3, 0.2), 44))
 	sim.head_caught.connect(_on_caught)
+	sim.branch_created.connect(func(_fid, pos):
+		board.popup(pos + Vector2(0, -46), "2. Finger!", Color("#b48cff"), 30)
+		fx.emit_burst(pos, 40, Color("#b48cff"), 60, 260, 0.8, 4.0))
+	sim.finale_started.connect(func(n):
+		if n > 0:
+			hint_label.text = "FINALE!"
+			hint_label.visible = true)
 	sim.game_over.connect(_on_game_over)
 	sim.start(candle_pos())
 	board.sim = sim
@@ -159,7 +166,7 @@ func _process(delta: float) -> void:
 	hint_label.size = Vector2(vr.size.x, 60)
 	over_label.position = Vector2(0, vr.size.y * 0.35)
 	over_label.size = Vector2(vr.size.x, 300)
-	if sim.fuses[0].lit:
+	if sim.fuses[0].lit and not sim.over:
 		hint_label.visible = false
 	if paused:
 		hint_label.visible = true
@@ -235,6 +242,7 @@ func _on_game_over(score: int) -> void:
 	over_time = Time.get_ticks_msec() / 1000.0
 	over_label.text = "Eingeholt!\n%d Punkte\nBestwert %d\nZündungen %d · beste Kette %d\n\nTippen für neue Runde" % [score, best, sim.ignitions, sim.best_chain]
 	over_label.visible = true
+	hint_label.visible = false
 	tracker.cancel_all()
 
 

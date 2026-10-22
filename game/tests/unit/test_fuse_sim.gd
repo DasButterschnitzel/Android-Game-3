@@ -171,3 +171,79 @@ func test_same_seed_same_result() -> void:
 			sim.step(1.0 / 60.0)
 		results.append([sim.score, sim.ignitions, sim.fireworks.size(), sim.over])
 	assert_eq(results[0], results[1], "deterministic")
+
+
+func test_splitter_creates_branch_that_second_finger_can_draw() -> void:
+	var sim := make_sim()
+	var sp := sim._add_firework(FuseSim.Kind.SPLITTER, Vector2(360, 1050))
+	sp.dir = Vector2.LEFT
+	draw_path(sim, [Vector2(360, 700)])
+	# Run until the splitter ignites.
+	while sim.fuses.size() < 2 and not sim.over:
+		sim.step(1.0 / 60.0)
+	assert_eq(sim.fuses.size(), 2, "branch created")
+	var branch := sim.fuses[1]
+	assert_true(branch.size() > 3, "branch has a stub")
+	assert_eq(sim.grab(1, branch.head()), 1, "second finger grabs branch head")
+	sim.extend(1, branch.head() + Vector2(-150, 0))
+	assert_true(branch.size() > 20, "second finger extends the branch")
+	assert_eq(sim.held_count(), 2, "two fuses held")
+
+
+func test_game_continues_while_any_head_survives() -> void:
+	var sim := make_sim()
+	var sp := sim._add_firework(FuseSim.Kind.SPLITTER, Vector2(360, 1150))
+	sp.dir = Vector2.RIGHT
+	draw_path(sim, [Vector2(360, 1000)])  # main fuse is short and will be caught
+	while sim.fuses.size() < 2 and not sim.over:
+		sim.step(1.0 / 60.0)
+	sim.grab(1, sim.fuses[1].head())
+	sim.extend(1, sim.fuses[1].head() + Vector2(0, -600))  # long branch
+	var t := 0.0
+	while sim.fuses[0].alive and t < 30.0:
+		sim.step(1.0 / 60.0)
+		t += 1.0 / 60.0
+	assert_false(sim.fuses[0].alive, "main head caught")
+	assert_false(sim.over, "branch still alive, game continues")
+	run_until_over(sim)
+	assert_true(sim.over, "over once every head is caught")
+
+
+func test_twin_bonus_applies_with_two_held_fuses() -> void:
+	var sim := make_sim()
+	var fw := sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 1100))
+	draw_path(sim, [Vector2(360, 800)])
+	# Fake a second held fuse to isolate the scoring rule.
+	var f2 := FuseSim.Fuse.new()
+	f2.id = 1
+	f2.pts.append(Vector2(100, 300))
+	f2.burnt.append(0)
+	f2.burn_t.append(0.0)
+	f2.pointer_id = 9
+	sim.fuses.append(f2)
+	while fw.state != FuseSim.FwState.EXPLODED and not sim.over:
+		sim.step(1.0 / 60.0)
+	assert_eq(sim.stats.twin_ignitions, 1, "twin ignition counted")
+	assert_true(sim.score >= int(round(10 * base_cfg.twin_bonus)), "bonus applied (%d)" % sim.score)
+
+
+func test_finale_ignites_remaining_threaded_fireworks() -> void:
+	var sim := make_sim()
+	# Two fireworks near the head end, spark is far away. A banger-free setup:
+	var a := sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 760))
+	var b := sim._add_firework(FuseSim.Kind.FOUNTAIN, Vector2(360, 720))
+	draw_path(sim, [Vector2(360, 700)])
+	assert_eq(a.state, FuseSim.FwState.ARMED, "a armed")
+	# Force a catch by blasting the head area: simulate by catching directly.
+	sim._catch(sim.fuses[0])
+	sim._check_over()
+	assert_true(sim.over, "over")
+	assert_false(sim.finished, "finale pending")
+	var guard := 0
+	while not sim.finished and guard < 600:
+		sim.step(1.0 / 60.0)
+		guard += 1
+	assert_true(sim.finished, "finale finished")
+	assert_eq(a.state, FuseSim.FwState.EXPLODED, "a exploded in finale")
+	assert_eq(b.state, FuseSim.FwState.EXPLODED, "b exploded in finale")
+	assert_true(sim.stats.finale_points > 0, "finale points counted")
