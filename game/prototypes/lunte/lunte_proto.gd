@@ -19,6 +19,12 @@ var round_index := 0
 var over_time := -1.0
 var paused := false
 var seed_override := -1  # set by capture/demo tools for reproducible rounds
+## "direct": the finger is the fuse head. "relative": touch anywhere, finger
+## movement is applied to the head like a trackpad (no occlusion, one-handed).
+var control_mode := "direct"
+const RELATIVE_GAIN := 1.35
+var _virtual := {}  # pointer id -> virtual head position (relative mode)
+var mode_button: Button
 
 
 func _ready() -> void:
@@ -69,6 +75,24 @@ func _build_hud() -> void:
 	dbg.focus_mode = Control.FOCUS_NONE
 	dbg.pressed.connect(func(): debug_overlay.visible = not debug_overlay.visible)
 	layer.add_child(dbg)
+	mode_button = Button.new()
+	mode_button.add_theme_font_size_override("font_size", 22)
+	mode_button.position = Vector2(get_viewport_rect().size.x - 330, 20)
+	mode_button.size = Vector2(160, 64)
+	mode_button.focus_mode = Control.FOCUS_NONE
+	mode_button.pressed.connect(_toggle_mode)
+	layer.add_child(mode_button)
+	_update_mode_button()
+
+
+func _toggle_mode() -> void:
+	control_mode = "relative" if control_mode == "direct" else "direct"
+	_update_mode_button()
+	tracker.cancel_all()
+
+
+func _update_mode_button() -> void:
+	mode_button.text = "Direkt" if control_mode == "direct" else "Relativ"
 
 
 func _label(parent: Node, pos: Vector2, size: int) -> Label:
@@ -150,6 +174,14 @@ func _on_down(p: PointerTracker.Pointer) -> void:
 		if over_time >= 0.0 and Time.get_ticks_msec() / 1000.0 - over_time > 0.8:
 			_new_round()
 		return
+	if control_mode == "relative":
+		# Any touch takes the first free fuse; movement is applied relatively.
+		for f in sim.fuses:
+			if f.alive and f.pointer_id == -1:
+				f.pointer_id = p.id
+				_virtual[p.id] = f.head()
+				return
+		return
 	if sim.grab(p.id, p.pos) < 0:
 		# Show where to continue.
 		for f in sim.fuses:
@@ -158,10 +190,20 @@ func _on_down(p: PointerTracker.Pointer) -> void:
 
 
 func _on_move(p: PointerTracker.Pointer) -> void:
+	if control_mode == "relative":
+		if not _virtual.has(p.id):
+			return
+		var a := sim.arena
+		var v: Vector2 = _virtual[p.id] + (p.pos - p.prev_pos) * RELATIVE_GAIN
+		v = Vector2(clampf(v.x, a.position.x, a.end.x), clampf(v.y, a.position.y, a.end.y))
+		_virtual[p.id] = v
+		sim.extend(p.id, v)
+		return
 	sim.extend(p.id, p.pos)
 
 
 func _on_up(p: PointerTracker.Pointer) -> void:
+	_virtual.erase(p.id)
 	sim.release(p.id)
 
 

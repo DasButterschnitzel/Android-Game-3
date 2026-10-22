@@ -4,8 +4,9 @@
 # Writes <output>.build.log (full log) and <output>.verify.txt (aapt2 + apksigner report).
 set -euo pipefail
 
-PROJECT_DIR="$(readlink -f "${1:?project dir}")"
-OUT="$(readlink -f "${2:?output apk}")"
+PROJECT_DIR="$(realpath -e "${1:?project dir}")"
+# -m: the output directory may not exist yet (e.g. fresh CI checkout).
+OUT="$(realpath -m "${2:?output apk}")"
 MODE="${3:-debug}"
 PRESET="${4:-Android}"
 ANDROID_SDK="${ANDROID_HOME:-/opt/android-sdk}"

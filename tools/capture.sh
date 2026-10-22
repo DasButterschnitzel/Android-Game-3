@@ -2,7 +2,7 @@
 # Record a bot-played session of a scene under Xvfb (software OpenGL) and encode it.
 # Usage: tools/capture.sh <out_dir> <seconds> [scene=res://...] [profile=normal] [seed=7]
 set -euo pipefail
-OUT="$(readlink -f "${1:?out dir}")"; SECS="${2:-30}"; shift 2 || true
+OUT="$(realpath -m "${1:?out dir}")"; SECS="${2:-30}"; shift 2 || true
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FPS=30
 mkdir -p "$OUT/frames"
