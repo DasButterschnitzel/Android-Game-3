@@ -51,9 +51,11 @@ jobs:
           bash tools/build_android.sh game "builds/android/pocket-${VERSION}-debug.apk" debug
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: android-debug-apk
           path: |
             builds/android/*.apk
             builds/android/*.verify.txt
+            builds/android/*.build.log
           retention-days: 30

@@ -12,7 +12,10 @@ PRESET="${4:-Android}"
 ANDROID_SDK="${ANDROID_HOME:-/opt/android-sdk}"
 GODOT="${GODOT:-godot}"
 
-BT_DIR="$(ls -d "$ANDROID_SDK"/build-tools/* | sort -V | tail -1)"
+# Prefer the build-tools version installed by setup_toolchain.sh: newer ones may
+# need a newer JDK than the one used for the build.
+BT_DIR="$ANDROID_SDK/build-tools/35.0.1"
+[ -x "$BT_DIR/apksigner" ] || BT_DIR="$(ls -d "$ANDROID_SDK"/build-tools/* | sort -V | tail -1)"
 mkdir -p "$(dirname "$OUT")"
 LOG="${OUT%.apk}.build.log"
 VERIFY="${OUT%.apk}.verify.txt"
@@ -60,6 +63,8 @@ fi
 
 if ! grep -q "Signer #1" "$VERIFY"; then
   echo "VERIFY FAILED: signature check did not pass. See $VERIFY" >&2
+  cat "$VERIFY" >&2
+  tail -40 "$LOG" >&2
   exit 1
 fi
 echo "OK: $OUT ($(du -h "$OUT" | cut -f1))"
