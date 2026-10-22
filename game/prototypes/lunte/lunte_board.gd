@@ -1,0 +1,145 @@
+extends Node2D
+## Placeholder renderer for the LUNTE prototype: reads FuseSim state every frame.
+## Geometry only (no textures) – the prototype tests the mechanic, not the art.
+
+var sim: FuseSim
+var t := 0.0
+var popups: Array = []  # {pos, text, age, color, size}
+
+const COL_BG_TOP := Color("#0a0c1c")
+const COL_BG_BOTTOM := Color("#1b1430")
+const COL_FUSE := Color("#ffb347")
+const COL_FUSE_GLOW := Color(1.0, 0.6, 0.2, 0.18)
+const COL_ASH := Color("#3b3447")
+const KIND_COL := {
+	FuseSim.Kind.FOUNTAIN: Color("#46e0c8"),
+	FuseSim.Kind.ROCKET: Color("#ff5fd2"),
+	FuseSim.Kind.BANGER: Color("#ff4b4b"),
+	FuseSim.Kind.SPLITTER: Color("#b48cff"),
+}
+const HEAT_COL := [Color.WHITE, Color("#ffe066"), Color("#ff9a3c"), Color("#ff3b3b")]
+
+
+func popup(pos: Vector2, text: String, color: Color, size := 30) -> void:
+	popups.append({"pos": pos, "text": text, "age": 0.0, "color": color, "size": size})
+
+
+func _process(delta: float) -> void:
+	t += delta
+	for p in popups:
+		p.age += delta
+		p.pos += Vector2(0, -40) * delta
+	popups = popups.filter(func(p): return p.age < 1.1)
+	queue_redraw()
+
+
+func _draw() -> void:
+	var vr := get_viewport_rect()
+	draw_polygon(PackedVector2Array([vr.position, Vector2(vr.end.x, vr.position.y), vr.end, Vector2(vr.position.x, vr.end.y)]),
+		PackedColorArray([COL_BG_TOP, COL_BG_TOP, COL_BG_BOTTOM, COL_BG_BOTTOM]))
+	if sim == null:
+		return
+	for f in sim.fuses:
+		_draw_fuse(f)
+	for fw in sim.fireworks:
+		_draw_firework(fw)
+	for r in sim.rockets:
+		var p: Vector2 = r.pos()
+		var dir: Vector2 = (r.to - r.from).normalized()
+		draw_line(p - dir * 26, p, KIND_COL[FuseSim.Kind.ROCKET], 5.0, true)
+		draw_circle(p, 6, Color.WHITE)
+	for sp in sim.sparks:
+		var f := sim.fuses[sp.fuse_id]
+		var p := _point_at(f, sp.s)
+		var flick := 0.8 + 0.2 * sin(t * 40.0 + sp.s)
+		draw_circle(p, 18 * flick, Color(1, 0.55, 0.15, 0.25))
+		draw_circle(p, 8 * flick, Color(1, 0.85, 0.4, 0.9))
+		draw_circle(p, 4, Color.WHITE)
+	_draw_heads()
+	var font := ThemeDB.fallback_font
+	for p in popups:
+		var a: float = 1.0 - p.age / 1.1
+		var c: Color = p.color
+		c.a = a
+		draw_string(font, p.pos - Vector2(60, 0), p.text, HORIZONTAL_ALIGNMENT_CENTER, 120, p.size, c)
+
+
+func _point_at(f: FuseSim.Fuse, s: float) -> Vector2:
+	var i := clampi(int(floor(s)), 0, f.size() - 1)
+	var j := mini(i + 1, f.size() - 1)
+	return f.pts[i].lerp(f.pts[j], s - floor(s))
+
+
+func _draw_fuse(f: FuseSim.Fuse) -> void:
+	var n := f.size()
+	if n < 2:
+		return
+	var run := PackedVector2Array()
+	var state := f.burnt[0]
+	run.append(f.pts[0])
+	for i in range(1, n):
+		var b := f.burnt[i]
+		run.append(f.pts[i])
+		if b != state or i == n - 1:
+			_draw_run(run, state)
+			run = PackedVector2Array([f.pts[i]])
+			state = b
+
+
+func _draw_run(run: PackedVector2Array, burnt: int) -> void:
+	if run.size() < 2:
+		return
+	if burnt == 1:
+		draw_polyline(run, COL_ASH, 3.0, true)
+	else:
+		draw_polyline(run, COL_FUSE_GLOW, 14.0, true)
+		draw_polyline(run, COL_FUSE, 4.0, true)
+
+
+func _draw_firework(fw: FuseSim.Firework) -> void:
+	var c: Color = KIND_COL[fw.kind]
+	match fw.state:
+		FuseSim.FwState.EXPLODED:
+			var a := clampf(1.0 - fw.age * 0.0, 0.0, 1.0)
+			return
+		FuseSim.FwState.FIZZLED:
+			var k := clampf(1.0 - (fw.age - (fw.max_life)) / 1.0, 0.0, 1.0)
+			draw_circle(fw.pos, fw.radius * 0.6, Color(0.4, 0.4, 0.45, 0.5))
+			return
+	var pulse := 1.0
+	if fw.state == FuseSim.FwState.WAITING and fw.life < 3.0:
+		pulse = 0.75 + 0.25 * sin(t * 14.0)
+	if fw.kind == FuseSim.Kind.BANGER:
+		draw_arc(fw.pos, sim.cfg.banger_radius, 0, TAU, 48, Color(c, 0.18), 2.0, true)
+	draw_circle(fw.pos, fw.radius, Color(c, 0.85 * pulse))
+	draw_circle(fw.pos, fw.radius * 0.55, Color(0.05, 0.05, 0.1, 0.8))
+	match fw.kind:
+		FuseSim.Kind.FOUNTAIN:
+			var s := fw.radius * 0.45
+			draw_colored_polygon(PackedVector2Array([fw.pos + Vector2(0, -s), fw.pos + Vector2(s * 0.9, s * 0.6), fw.pos + Vector2(-s * 0.9, s * 0.6)]), c)
+		FuseSim.Kind.ROCKET:
+			draw_line(fw.pos - fw.dir * 10, fw.pos + fw.dir * 44, c, 4.0, true)
+			var tip := fw.pos + fw.dir * 48
+			draw_colored_polygon(PackedVector2Array([tip, tip - fw.dir * 14 + fw.dir.orthogonal() * 8, tip - fw.dir * 14 - fw.dir.orthogonal() * 8]), c)
+		FuseSim.Kind.BANGER:
+			draw_circle(fw.pos, fw.radius * 0.3, c)
+	if fw.state == FuseSim.FwState.WAITING:
+		var frac := clampf(fw.life / fw.max_life, 0.0, 1.0)
+		draw_arc(fw.pos, fw.radius + 7, -PI / 2, -PI / 2 + TAU * frac, 32, Color(1, 1, 1, 0.55), 3.0, true)
+	else:
+		draw_arc(fw.pos, fw.radius + 6, 0, TAU, 32, Color(1, 0.9, 0.6, 0.9), 3.0, true)
+
+
+func _draw_heads() -> void:
+	for f in sim.fuses:
+		if not f.alive:
+			continue
+		var h := f.head()
+		var heat := sim.heat_level()
+		var hc: Color = HEAT_COL[heat]
+		if f.pointer_id == -1:
+			var r := 46.0 + 8.0 * sin(t * 6.0)
+			draw_arc(h, r, 0, TAU, 40, Color(1, 1, 1, 0.7), 3.0, true)
+		draw_circle(h, 9, hc)
+		if heat >= 2 and f.lit:
+			draw_arc(h, 24 + 3 * sin(t * 20.0), 0, TAU, 32, Color(hc, 0.8), 3.0, true)

@@ -11,7 +11,12 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 
+const ErrorLogger := preload("res://tests/error_logger.gd")
+var _logger := ErrorLogger.new()
+
+
 func _run() -> void:
+	OS.add_logger(_logger)
 	var filter := ""
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
@@ -24,16 +29,22 @@ func _run() -> void:
 		for file in _list(dir):
 			if filter != "" and not file.contains(filter):
 				continue
+			_logger.take()
 			var script: GDScript = load(file)
-			if script == null:
-				lines.append("LOAD ERROR %s" % file)
+			var load_errors: Array = _logger.take().filter(func(e): return not e.begins_with("[WARNING]"))
+			if script == null or not script.can_instantiate() or not load_errors.is_empty():
+				lines.append("  FAIL %s (load/compile)" % file)
+				for e in load_errors:
+					lines.append("       - %s" % e)
 				failed += 1
+				total += 1
 				continue
 			var methods: Array[String] = []
 			for m in script.get_script_method_list():
 				if m.name.begins_with("test_") and not methods.has(m.name):
 					methods.append(m.name)
 			for m in methods:
+				_logger.take()
 				var inst: TestCase = script.new()
 				root.add_child(inst)
 				inst.current_test = "%s::%s" % [file.get_file(), m]
@@ -43,6 +54,9 @@ func _run() -> void:
 				if inst.has_method("after_each"):
 					await inst.call("after_each")
 				total += 1
+				for e in _logger.take():
+					if not e.begins_with("[WARNING]"):
+						inst.failures.append("runtime error: " + e)
 				if inst.failures.is_empty():
 					lines.append("  ok   %s" % inst.current_test)
 				else:
