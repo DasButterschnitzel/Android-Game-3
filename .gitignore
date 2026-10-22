@@ -13,3 +13,5 @@ __pycache__/
 # OS
 .DS_Store
 builds/linux/
+# Build reports are copied to docs/builds/ for releases worth keeping
+builds/**/*.verify.txt

@@ -9,9 +9,6 @@ const PROTOTYPES := [
 
 
 func _ready() -> void:
-	if OS.is_debug_build() and "--smoke" in OS.get_cmdline_user_args():
-		_smoke_test.call_deferred()
-		return
 	var bg := ColorRect.new()
 	bg.color = Color("#0b0d1a")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -37,24 +34,3 @@ func _ready() -> void:
 		b.pressed.connect(func(): get_tree().change_scene_to_file(path))
 		box.add_child(b)
 
-
-## Debug builds only: load every prototype scene in the exported build, let it
-## run for a while, then quit. Used by tools/smoke_exported.sh (engine/script
-## errors show up in the log; "SMOKE OK" marks completion).
-func _smoke_test() -> void:
-	var tree := get_tree()
-	for p in PROTOTYPES:
-		var scene: PackedScene = load(p[2])
-		if scene == null:
-			print("SMOKE FAIL load ", p[2])
-			tree.quit(1)
-			return
-		var inst := scene.instantiate()
-		tree.root.add_child(inst)
-		for i in 240:
-			await tree.process_frame
-		inst.queue_free()
-		await tree.process_frame
-		print("SMOKE scene ok ", p[2])
-	print("SMOKE OK")
-	tree.quit(0)

@@ -1,7 +1,8 @@
 class_name SparkParticles
 extends Node2D
 ## Lightweight additive particle system drawn in one _draw call.
-## Cheaper and more controllable than many GPUParticles2D nodes for short bursts.
+## Each particle is a textured quad of one shared soft glow texture, which is
+## cheaper than polygon circles and gives a natural bloom on GLES3 devices.
 
 const MAX := 900
 
@@ -13,21 +14,23 @@ var _size := PackedFloat32Array()
 var _col := PackedColorArray()
 var _drag := PackedFloat32Array()
 var gravity := Vector2(0, 160)
-var intensity := 1.0  # global multiplier from "reduce effects" setting
+var intensity := 1.0  # global multiplier from the "effects" setting
+var _tex: Texture2D
 
 
 func _ready() -> void:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	material = mat
+	_tex = ArtKit.glow_texture()
 
 
-func emit_burst(at: Vector2, count: int, color: Color, speed_min: float, speed_max: float, life: float, size: float, drag := 1.6) -> void:
+func emit_burst(at: Vector2, count: int, color: Color, speed_min: float, speed_max: float, life: float, size: float, drag := 1.6, spread := TAU, dir := Vector2.UP) -> void:
 	count = int(count * intensity)
 	for i in count:
 		if _pos.size() >= MAX:
 			_remove(0)
-		var a := randf() * TAU
+		var a := randf() * TAU if spread >= TAU else dir.angle() + randf_range(-spread * 0.5, spread * 0.5)
 		var sp := randf_range(speed_min, speed_max)
 		_pos.append(at)
 		_vel.append(Vector2.from_angle(a) * sp)
@@ -63,6 +66,11 @@ func _remove(i: int) -> void:
 	_drag.remove_at(i)
 
 
+func clear() -> void:
+	for arr in [_pos, _vel, _life, _max_life, _size, _col, _drag]:
+		arr.clear()
+
+
 func _process(delta: float) -> void:
 	var i := _pos.size() - 1
 	while i >= 0:
@@ -81,7 +89,8 @@ func _draw() -> void:
 		var t := _life[i] / _max_life[i]
 		var c := _col[i]
 		c.a = t
-		draw_circle(_pos[i], _size[i] * (0.4 + 0.6 * t), c)
+		var s := _size[i] * (0.5 + 0.5 * t) * 2.6
+		draw_texture_rect(_tex, Rect2(_pos[i] - Vector2(s, s) * 0.5, Vector2(s, s)), false, c)
 
 
 func count() -> int:

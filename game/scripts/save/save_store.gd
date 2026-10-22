@@ -36,8 +36,11 @@ static func defaults() -> Dictionary:
 			"total_ignitions": 0,
 			"best_chain": 0,
 			"longest_round": 0.0,
+			"dawns": 0,
 		},
 		"unlocks": {},
+		"onboarding": {},  # hint key -> true once shown
+		"pending_daily": false,
 		"ads": {
 			"consent": "unknown",  # unknown | granted | denied | not_required
 			"rounds_since_interstitial": 0,

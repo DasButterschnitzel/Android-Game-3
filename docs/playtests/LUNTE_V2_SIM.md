@@ -1,5 +1,11 @@
 # LUNTE v2 – Simulationsprotokoll (Bot-Abnahme B1–B4)
 
+> **KORREKTUR (nach unabhängiger Nachmessung, siehe `PROTOTYPE_COMPARISON_CRITIC.md` und ADR 0002):**
+> Die unten gemeldeten „Bestanden“-Ergebnisse sind **nicht haltbar**. B3 wurde mit falschem Nenner berechnet
+> (Böller-Tode / alle Runden statt / Tode; korrekt: 23–26 % → nicht bestanden). B1 nutzte falsch benannte
+> Bot-Profile (ein Stufe-2-Profil macht Gier wieder gratis). B2 wurde oberhalb der Funken-Obergrenze gemessen.
+> LUNTE v2 wird daher nicht weiterentwickelt. Das Protokoll bleibt als Nachweis des Fehlers unverändert stehen.
+
 Stand 2026-10-22 · Agent H (QA) / Agent E · **Bots sind keine Menschen.** Sie spielen mit perfekter Information,
 ohne Verdeckung und ohne Zögern. Die Werte prüfen das *Regelwerk*, nicht den Spielspaß.
 

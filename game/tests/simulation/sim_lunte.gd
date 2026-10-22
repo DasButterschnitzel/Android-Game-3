@@ -96,12 +96,13 @@ func _acceptance(s: Dictionary) -> Dictionary:
 	var max_t := 0.0
 	for p in s:
 		blast += int(s[p].deaths.get("blast", 0))
-		total += int(s[p].n)
+		# ADR 0001 B3 is a share of *deaths*: rounds that reached dawn are not deaths.
+		total += int(s[p].n) - int(s[p].deaths.get("dawn", 0)) - int(s[p].deaths.get("timeout", 0))
 		min_t = minf(min_t, s[p].time.median)
 		max_t = maxf(max_t, s[p].time.median)
 	return {
 		"B1_greed_costs": {"greedy_vs_cautious_time": snappedf(greedy / cautious, 0.001), "pass": greedy <= cautious * 0.85},
 		"B2_motor_not_dominant": {"score_ratio_400_vs_230": snappedf(fast / maxf(slow, 1.0), 0.001), "pass": fast <= slow * 1.6},
-		"B3_blast_deaths": {"share": snappedf(float(blast) / total, 0.001), "pass": float(blast) / total < 0.15},
+		"B3_blast_deaths": {"share_of_deaths": snappedf(float(blast) / maxf(total, 1.0), 0.001), "pass": float(blast) / maxf(total, 1.0) < 0.15},
 		"B4_round_length": {"median_min": min_t, "median_max": max_t, "pass": min_t >= 45.0 and max_t <= 150.0},
 	}

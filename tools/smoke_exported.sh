@@ -9,7 +9,11 @@ mkdir -p "$OUT"
 "$GODOT" --headless --path "$ROOT/game" --export-debug "LinuxSmoke" "$OUT/pocket.x86_64" > "$OUT/export.log" 2>&1
 LOG="$OUT/smoke.log"
 timeout 300 "$OUT/pocket.x86_64" --headless -- --smoke > "$LOG" 2>&1 || true
-if grep -qE "SCRIPT ERROR|^ERROR" "$LOG" || ! grep -q "SMOKE OK" "$LOG"; then
-  echo "SMOKE FAILED"; grep -E "SMOKE|ERROR" "$LOG" | head -20; exit 1
+# "resources still in use at exit" is an exit-time artifact of GDScript static
+# variables (reported after the game already quit cleanly); every other engine
+# or script error fails the smoke test.
+ERRORS="$(grep -E "SCRIPT ERROR|^ERROR" "$LOG" | grep -v "resources still in use at exit" || true)"
+if [ -n "$ERRORS" ] || ! grep -q "SMOKE OK" "$LOG"; then
+  echo "SMOKE FAILED"; echo "$ERRORS" | head -20; grep -E "SMOKE" "$LOG" | head -20; exit 1
 fi
 grep "SMOKE" "$LOG"
