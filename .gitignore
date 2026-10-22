@@ -1,0 +1,14 @@
+# Godot
+game/.godot/
+*.import.tmp
+# Build outputs (APKs are delivered via CI artifacts / direct handoff, not git)
+builds/**/*.apk
+builds/**/*.apk.idsig
+builds/**/*.aab
+builds/**/*.build.log
+builds/**/tmp/
+# Python
+__pycache__/
+*.pyc
+# OS
+.DS_Store

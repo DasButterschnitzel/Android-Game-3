@@ -1,0 +1,59 @@
+name: Android test build
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GODOT_VERSION: "4.7.2"
+      TOOLS_DIR: ${{ github.workspace }}/../pocket-toolchain
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Godot editor and export templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.TOOLS_DIR }}
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-v2
+
+      - name: Set up toolchain
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          bash tools/setup_toolchain.sh
+          echo "GODOT=${TOOLS_DIR}/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Import project
+        run: timeout 300 "$GODOT" --headless --path game --import || true
+
+      - name: Unit and integration tests
+        run: timeout 600 "$GODOT" --headless --path game --script res://tests/run_tests.gd
+
+      - name: Export debug APK
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          VERSION=$(grep -oP '^version/name="\K[^"]+' game/export_presets.cfg | head -1)
+          bash tools/build_android.sh game "builds/android/pocket-${VERSION}-debug.apk" debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: |
+            builds/android/*.apk
+            builds/android/*.verify.txt
+          retention-days: 30
