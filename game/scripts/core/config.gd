@@ -50,3 +50,13 @@ static func daily_number() -> int:
 	var epoch := Time.get_unix_time_from_datetime_string("2026-10-22T00:00:00")
 	var today := Time.get_unix_time_from_datetime_string(Time.get_date_string_from_system() + "T00:00:00")
 	return int((today - epoch) / 86400) + 1
+
+
+## "Version 0.8.0", plus the kind of build for testers' reports.
+static func version_text() -> String:
+	var t := "Version %s" % str(ProjectSettings.get_setting("application/config/version", "?"))
+	if OS.has_feature("nachhall_ads"):
+		t += " · Werbetest"
+	elif OS.is_debug_build():
+		t += " · Test-Build"
+	return t

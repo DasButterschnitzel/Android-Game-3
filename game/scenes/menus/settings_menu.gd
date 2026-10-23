@@ -78,6 +78,7 @@ func _build() -> void:
 		closed.emit()
 		queue_free())
 	box.add_child(back)
+	box.add_child(UiTheme.label(Config.version_text(), 22, UiTheme.TEXT_DIM))
 
 
 func _save() -> SaveStore:

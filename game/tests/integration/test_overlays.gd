@@ -161,6 +161,19 @@ func test_credits_lead_to_the_engine_licenses() -> void:
 	c.queue_free()
 
 
+func test_settings_and_credits_show_the_version() -> void:
+	var want := "Version %s" % str(ProjectSettings.get_setting("application/config/version"))
+	assert_true(Config.version_text().begins_with(want), "version from the project settings")
+	assert_true(Config.version_text().ends_with("Test-Build"), "tests run a debug build")
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new()]:
+		menu.add_child(panel)
+		await frames(2)
+		var texts: Array = panel.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+		assert_true(texts.any(func(t): return str(t).contains(want)), "%s shows the version" % panel.get_script().get_global_name())
+		panel.queue_free()
+		await frames(1)
+
+
 func test_settings_buttons_are_reachable() -> void:
 	var s := SettingsMenu.new()
 	menu.add_child(s)

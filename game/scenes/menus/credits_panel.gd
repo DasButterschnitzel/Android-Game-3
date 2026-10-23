@@ -28,7 +28,8 @@ func _ready() -> void:
 	var inner := VBoxContainer.new()
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(inner)
-	var text := "Spiel, Grafik und Klänge: eigenständig prozedural erzeugt.\n\n"
+	var text := "NACHHALL – %s\n\n" % Config.version_text()
+	text += "Spiel, Grafik und Klänge: eigenständig prozedural erzeugt.\n\n"
 	text += "Schrift: Fredoka – Milena Brandão, Hafontia (SIL Open Font License 1.1).\n\n"
 	text += "Erstellt mit Godot Engine – godotengine.org\n\n"
 	text += Engine.get_license_text()
