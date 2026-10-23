@@ -31,6 +31,28 @@ const SECONDARY := Color("#1c1f45")
 const SECONDARY_EDGE := Color("#0e1030")
 
 static var _cached: Theme
+## Player setting "Schrift" (1.0 normal, 1.2 groß): scales menu, card and note
+## text; the in-run HUD keeps its fixed layout.
+static var text_scale := 1.0
+
+
+## A font size scaled by the text setting.
+static func fs(size: int) -> int:
+	return int(round(size * text_scale))
+
+
+## Applies the text setting; controls built from the theme follow at once,
+## everything else when it is built next.
+static func set_text_scale(s: float) -> void:
+	text_scale = clampf(s, 1.0, 1.5)
+	if _cached:
+		_apply_sizes(_cached)
+
+
+static func _apply_sizes(t: Theme) -> void:
+	t.default_font_size = fs(30)
+	t.set_font_size("font_size", "Button", fs(32))
+	t.set_font_size("font_size", "CheckButton", fs(28))
 
 
 static func get_theme() -> Theme:
@@ -38,7 +60,6 @@ static func get_theme() -> Theme:
 		return _cached
 	var t := Theme.new()
 	t.default_font = FONT_MEDIUM
-	t.default_font_size = 30
 	t.set_color("font_color", "Label", TEXT)
 	for kind in ["Button"]:
 		# Secondary actions: dark "night paper" with paper thickness.
@@ -52,7 +73,6 @@ static func get_theme() -> Theme:
 		t.set_color("font_hover_color", kind, TEXT)
 		t.set_color("font_disabled_color", kind, TEXT_DIM)
 		t.set_font("font", kind, FONT_BOLD)
-		t.set_font_size("font_size", kind, 32)
 	t.set_stylebox("panel", "PanelContainer", panel_box())
 	t.set_stylebox("grabber_area", "HSlider", _box(ACCENT, 6, 0, 10))
 	t.set_stylebox("grabber_area_highlight", "HSlider", _box(ACCENT, 6, 0, 10))
@@ -60,11 +80,11 @@ static func get_theme() -> Theme:
 	t.set_constant("separation", "VBoxContainer", 18)
 	t.set_constant("separation", "HBoxContainer", 16)
 	t.set_font("font", "CheckButton", FONT_MEDIUM)
-	t.set_font_size("font_size", "CheckButton", 28)
 	t.set_color("font_color", "CheckButton", TEXT)
 	t.set_color("font_pressed_color", "CheckButton", TEXT)
 	t.set_color("font_hover_color", "CheckButton", TEXT)
 	t.set_color("font_hover_pressed_color", "CheckButton", TEXT)
+	_apply_sizes(t)
 	_cached = t
 	return t
 
@@ -93,7 +113,7 @@ static func primary_button(text: String) -> Button:
 	b.add_theme_color_override("font_disabled_color", TEXT_DIM)
 	# Own font override: the game puts this button on a CanvasLayer, where no theme is inherited.
 	b.add_theme_font_override("font", FONT_BOLD)
-	b.add_theme_font_size_override("font_size", 42)
+	b.add_theme_font_size_override("font_size", fs(42))
 	return b
 
 
@@ -108,7 +128,7 @@ static func button(text: String, min_size := Vector2(360, TOUCH_MIN)) -> Button:
 static func label(text: String, size := 30, color := TEXT, bold := false) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", fs(size))
 	l.add_theme_color_override("font_color", color)
 	if bold:
 		l.add_theme_font_override("font", FONT_BOLD)

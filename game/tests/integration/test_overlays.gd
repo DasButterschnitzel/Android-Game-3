@@ -86,6 +86,57 @@ func test_touch_targets_are_at_least_48_dp() -> void:
 	await frames(1)
 
 
+## "Schrift: groß": every page still fits, nothing leaves the screen and the
+## text really is larger.
+func test_large_text_keeps_every_screen_usable() -> void:
+	UiTheme.set_text_scale(1.2)
+	var vp := get_viewport().get_visible_rect().size
+	var big := UiTheme.label("x", 30)
+	assert_eq(big.get_theme_font_size("font_size"), 36, "labels 20 % larger")
+	big.free()
+	assert_eq(UiTheme.get_theme().get_font_size("font_size", "Button"), 38, "theme buttons follow at once")
+	var m2: Control = load("res://scenes/menus/main_menu.tscn").instantiate()
+	add_child(m2)
+	await frames(2)
+	for panel: Control in [m2, SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+		if panel != m2:
+			m2.add_child(panel)
+		await frames(2)
+		var name := str(panel.get_script().get_global_name())
+		for b: Control in panel.find_children("*", "BaseButton", true, false):
+			if b.is_visible_in_tree() and not _in_scroll(b):
+				assert_true(Rect2(Vector2.ZERO, vp).encloses(b.get_global_rect().grow(-0.5)), "%s: %s on screen" % [name, b.name])
+			if b.is_visible_in_tree():
+				assert_true(b.size.y >= UiTheme.TOUCH_MIN - 0.5, "%s: %s still 48 dp" % [name, b.name])
+		if panel != m2:
+			panel.queue_free()
+			await frames(1)
+	m2.queue_free()
+	UiTheme.set_text_scale(1.0)
+	await frames(1)
+
+
+func test_text_size_setting_rebuilds_the_settings_page() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	save.set_setting("text_scale", 1.0)
+	var s := SettingsMenu.new()
+	menu.add_child(s)
+	await frames(2)
+	var row: Button = s.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text.begins_with("Schrift"))[0]
+	assert_eq(row.text, "Schrift: normal", "starts normal")
+	row.pressed.emit()
+	await frames(3)
+	assert_eq(float(save.get_setting("text_scale")), 1.2, "stored")
+	assert_eq(UiTheme.text_scale, 1.2, "applied")
+	var title: Label = s.find_children("*", "Label", true, false)[0]
+	assert_eq(title.get_theme_font_size("font_size"), UiTheme.fs(52), "the page was rebuilt with the larger text")
+	var rows := s.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text.begins_with("Schrift") and not (b as Button).is_queued_for_deletion())
+	assert_eq((rows[-1] as Button).text, "Schrift: groß", "row shows the new size")
+	save.set_setting("text_scale", 1.0)
+	UiTheme.set_text_scale(1.0)
+	s.queue_free()
+
+
 func test_settings_buttons_are_reachable() -> void:
 	var s := SettingsMenu.new()
 	menu.add_child(s)

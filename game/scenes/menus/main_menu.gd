@@ -67,7 +67,7 @@ func _ready() -> void:
 	var daily := UiTheme.button(_daily_text())
 	daily.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	if daily.text.length() > 24:
-		daily.add_theme_font_size_override("font_size", 26)
+		daily.add_theme_font_size_override("font_size", UiTheme.fs(26))
 	daily.pressed.connect(func(): _start(true, ""))
 	box.add_child(daily)
 	# Harder mode, unlocked by surviving one night (a goal, not a purchase).
@@ -76,7 +76,7 @@ func _ready() -> void:
 	moon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	moon.disabled = not moon_open
 	if not moon_open:
-		moon.add_theme_font_size_override("font_size", 22)
+		moon.add_theme_font_size_override("font_size", UiTheme.fs(22))
 	moon.pressed.connect(func(): _start(false, "fullmoon"))
 	box.add_child(moon)
 	var row := HBoxContainer.new()

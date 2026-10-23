@@ -10,11 +10,28 @@ const CONTROL_MODES := ["direct", "offset", "relative"]
 const CONTROL_NAMES := {"direct": "LUNTE-Labor: direkt", "offset": "LUNTE-Labor: Versatz", "relative": "LUNTE-Labor: relativ"}
 
 
+var _scroll: ScrollContainer
+
+
 func _ready() -> void:
 	add_to_group("back_handler")
 	theme = UiTheme.get_theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	_build()
+
+
+## Rebuilt after the text size changed, so the page shows the new size at once.
+func _rebuild() -> void:
+	var at := _scroll.scroll_vertical if _scroll else 0
+	for c in get_children():
+		c.queue_free()
+	_build()
+	await get_tree().process_frame
+	_scroll.scroll_vertical = at
+
+
+func _build() -> void:
 	var dim := ColorRect.new()
 	dim.color = UiTheme.BG  # opaque: the menu logo must not shine through
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -27,6 +44,7 @@ func _ready() -> void:
 	scroll.offset_bottom = -40 - SafeArea.bottom(get_viewport())
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
+	_scroll = scroll
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
@@ -37,6 +55,7 @@ func _ready() -> void:
 	box.add_child(_toggle("Stumm", "muted"))
 	box.add_child(_toggle("Vibration", "haptics"))
 	box.add_child(_effects_row())
+	box.add_child(_text_row())
 	box.add_child(_sensitivity_row())
 	box.add_child(_toggle("Zweiter Finger = zweites Licht", "second_finger"))
 	box.add_child(_toggle("Touch-Anzeige (Test)", "touch_debug"))
@@ -121,6 +140,20 @@ func _effects_row() -> Control:
 	col.add_child(b)
 	col.add_child(hint)
 	return col
+
+
+## Larger text in menus, cards and teaching notes.
+func _text_row() -> Control:
+	var names := {1.0: "Schrift: normal", 1.2: "Schrift: groß"}
+	var cur := float(_save().get_setting("text_scale"))
+	var b := UiTheme.button(names.get(cur, "Schrift: normal"))
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.pressed.connect(func():
+		var nxt := 1.0 if float(_save().get_setting("text_scale")) > 1.0 else 1.2
+		_save().set_setting("text_scale", nxt)
+		UiTheme.set_text_scale(nxt)
+		_rebuild.call_deferred())
+	return b
 
 
 ## How far the light moves per finger movement (bigger phones may want "hoch").

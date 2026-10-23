@@ -72,6 +72,11 @@ func _ready() -> void:
 	add_child(_note)
 
 
+## The teaching note follows the "Schrift" setting (changed in the pause menu).
+func apply_text_scale() -> void:
+	_note.add_theme_font_size_override("font_size", UiTheme.fs(26))
+
+
 static func _pause_icon() -> Texture2D:
 	var img := Image.create(28, 28, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))

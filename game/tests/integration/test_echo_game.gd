@@ -472,6 +472,15 @@ func test_a_lent_paper_is_used_up_by_an_abandoned_night_too() -> void:
 ## A strong first night can unlock almost everything at once: the card, with
 ## both buttons, must still fit a 16:9 screen (QA review 0.7).
 func test_results_card_fits_even_when_a_night_unlocks_a_lot() -> void:
+	await _card_with_everything(1.0)
+
+
+func test_results_card_fits_with_large_text_too() -> void:
+	await _card_with_everything(1.2)
+
+
+func _card_with_everything(text_scale: float) -> void:
+	UiTheme.set_text_scale(text_scale)
 	game.daily = true
 	var all: Array[String] = []
 	for id in Progression.ACHIEVEMENTS:
@@ -485,6 +494,7 @@ func test_results_card_fits_even_when_a_night_unlocks_a_lot() -> void:
 	assert_true(vp.encloses(game.again_button.get_global_rect()), "Nochmal on screen")
 	var texts: Array = card.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
 	assert_true(texts.any(func(t): return str(t).begins_with("Neue Sternbilder: ")), "listed in one line")
+	UiTheme.set_text_scale(1.0)
 
 
 func test_results_card_closed_early_leaves_no_dangling_timer() -> void:

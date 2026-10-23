@@ -4,7 +4,7 @@ extends SceneTree
 ## overlap or are smaller than UiTheme.TOUCH_MIN, and saves a screenshot.
 ## Usage (Xvfb, see tools/layout_check.sh):
 ##   godot --path game --rendering-driver opengl3 --resolution WxH --script res://tests/capture/layout_probe.gd \
-##     -- <screen> <out_dir> [safe_top=N] [daily] save=layout_probe.json fresh_save
+##     -- <screen> <out_dir> [safe_top=N] [text=1.2] [daily] save=layout_probe.json fresh_save
 ## Screens: menu settings collection credits privacy rules game pause between results results_many
 
 var screen := "menu"
@@ -34,6 +34,8 @@ func _go() -> void:
 	for x in args:
 		if x.begins_with("safe_top="):
 			SafeArea.override = Vector4(0, float(x.substr(9)), 0, 0)
+		if x.begins_with("text="):
+			UiTheme.set_text_scale(float(x.substr(5)))
 	await process_frame
 	var vr := root.get_visible_rect()
 	print("SCREEN=", screen, " window=", DisplayServer.window_get_size(), " visible=", vr.size)

@@ -673,6 +673,8 @@ func _reload_settings() -> void:
 	fx.intensity = 0.4 + 0.6 * effects
 	view.effects = effects
 	debug_overlay.visible = bool(save.get_setting("touch_debug"))
+	hud.apply_text_scale()
+	bank_button.add_theme_font_size_override("font_size", UiTheme.fs(42))
 
 
 ## Android back: pause during play, resume from pause, menu from results.

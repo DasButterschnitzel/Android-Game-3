@@ -35,6 +35,7 @@ static func defaults() -> Dictionary:
 			"control_mode": "direct",  # LUNTE lab only: "direct", "offset" or "relative"
 			"second_finger": true,  # a second finger lights a second light
 			"sensitivity": 1.0,  # relative control gain factor: 0.75 low, 1.0 normal, 1.3 high
+			"text_scale": 1.0,  # menus, cards and notes: 1.0 normal, 1.2 large
 			"lantern_paper": "classic",  # cosmetic, see Progression.PAPERS
 			"ads_preview": true,  # debug builds: show the marked ad placeholders
 		},

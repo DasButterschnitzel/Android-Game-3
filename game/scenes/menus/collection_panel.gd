@@ -100,7 +100,7 @@ func _papers(unlocks: Dictionary, save: SaveStore) -> Control:
 		var card := VBoxContainer.new()
 		card.add_theme_constant_override("separation", 6)
 		var b := UiTheme.button(p.name, Vector2(196, 80))
-		b.add_theme_font_size_override("font_size", 24)
+		b.add_theme_font_size_override("font_size", UiTheme.fs(24))
 		b.icon = _swatch(p.paper, p.rib)
 		b.disabled = not open
 		if id == current and open:
@@ -116,7 +116,7 @@ func _papers(unlocks: Dictionary, save: SaveStore) -> Control:
 				card.add_child(_note("trägst du nächste Nacht", UiTheme.GOOD))
 			elif _trial_offered(save):
 				var t := UiTheme.button("1 Nacht testen\n(Werbung)", Vector2(196, UiTheme.TOUCH_MIN))
-				t.add_theme_font_size_override("font_size", 20)
+				t.add_theme_font_size_override("font_size", UiTheme.fs(20))
 				t.pressed.connect(func(): _try_paper(pid))
 				card.add_child(t)
 			card.add_child(_note("Freischalten: " + Progression.ACHIEVEMENTS[p.unlock].name, UiTheme.TEXT_DIM))

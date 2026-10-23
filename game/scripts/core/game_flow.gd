@@ -14,6 +14,9 @@ var _busy := false
 func _ready() -> void:
 	layer = 100
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var save := get_node_or_null("/root/Save") as SaveStore
+	if save:  # before the first screen is built
+		UiTheme.set_text_scale(float(save.get_setting("text_scale")))
 	_rect = ColorRect.new()
 	_rect.color = Color(0.03, 0.03, 0.08, 0.0)
 	_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
