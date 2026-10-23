@@ -19,7 +19,7 @@ func after_each() -> void:
 func test_menu_overlays_fill_the_screen() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	assert_game_font(menu, "main menu")
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new(), LicensesPanel.new()]:
 		menu.add_child(panel)
 		await frames(2)
 		assert_vec_near(panel.size, vp, 1.0, "%s covers the screen" % panel.get_script().get_global_name())
@@ -39,7 +39,7 @@ func test_menu_overlays_fill_the_screen() -> void:
 func test_panels_respect_the_safe_area() -> void:
 	SafeArea.override = Vector4(0, 100, 0, 60)
 	var vp := get_viewport().get_visible_rect().size
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new(), LicensesPanel.new()]:
 		menu.add_child(panel)
 		await frames(2)
 		var name: String = panel.get_script().get_global_name()
@@ -67,7 +67,7 @@ func _in_scroll(c: Node) -> bool:
 ## Every button, toggle and slider is at least 48 dp tall on a 360 dp phone.
 func test_touch_targets_are_at_least_48_dp() -> void:
 	var screens: Array[Control] = [menu]
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new(), LicensesPanel.new()]:
 		menu.add_child(panel)
 		screens.append(panel)
 	await frames(3)
@@ -137,6 +137,30 @@ func test_text_size_setting_rebuilds_the_settings_page() -> void:
 	s.queue_free()
 
 
+## The engine's third-party notices (FreeType, Mbed TLS, ...) ship inside the
+## app: several of their licenses require it.
+func test_credits_lead_to_the_engine_licenses() -> void:
+	var c := CreditsPanel.new()
+	menu.add_child(c)
+	await frames(2)
+	var btn: Button = c.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text.begins_with("Lizenzen"))[0]
+	btn.pressed.emit()
+	await frames(2)
+	var page := c.find_children("*", "LicensesPanel", true, false)
+	assert_eq(page.size(), 1, "the licenses page opens")
+	var lp := page[0] as LicensesPanel
+	for i in 200:
+		if lp.complete():
+			break
+		await frames(1)
+	assert_true(lp.complete(), "every notice added")
+	var text := "\n".join(PackedStringArray(lp.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)))
+	for needle in ["The FreeType Project", "Mbed TLS", "HarfBuzz", "Copyright (c) 2014-present Godot Engine contributors"]:
+		assert_true(text.contains(needle), "contains %s" % needle)
+	assert_true(text.length() > 50000, "the full license texts (%d characters)" % text.length())
+	c.queue_free()
+
+
 func test_settings_buttons_are_reachable() -> void:
 	var s := SettingsMenu.new()
 	menu.add_child(s)
@@ -161,7 +185,7 @@ func test_settings_buttons_are_reachable() -> void:
 
 func test_every_screen_answers_the_back_button() -> void:
 	assert_true(menu.is_in_group("back_handler") and menu.has_method("on_back"), "main menu handles back (leaves the app)")
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new(), LicensesPanel.new()]:
 		menu.add_child(panel)
 		await frames(1)
 		var name: String = panel.get_script().get_global_name()
@@ -210,6 +234,20 @@ func test_privacy_page_matches_the_ad_backend() -> void:
 	assert_false(buttons.has("Werbe-Einwilligung ändern"), "no ads -> no consent button")
 	assert_true(PrivacyPanel.text_for("admob").contains("TESTANZEIGEN von Google AdMob"), "ads test build names Google")
 	panel.queue_free()
+
+
+func test_privacy_link_and_contact_come_from_the_owner_config() -> void:
+	var shipped := PrivacyPanel.app_info()
+	assert_eq(shipped.privacy_policy_url, "", "no URL invented: the owner fills data/app.json")
+	var tmp := "user://test_app_info.json"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"privacy_policy_url": " https://example.org/datenschutz ", "contact_email": "hallo@example.org"}))
+	f.close()
+	var info := PrivacyPanel.app_info(tmp)
+	assert_eq(info.privacy_policy_url, "https://example.org/datenschutz", "read and trimmed")
+	assert_eq(info.contact_email, "hallo@example.org", "contact read")
+	assert_eq(PrivacyPanel.app_info("user://missing.json").contact_email, "", "missing file: nothing shown")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
 
 func test_a_locked_paper_can_be_worn_for_one_night_after_a_rewarded_ad() -> void:

@@ -17,6 +17,17 @@ const ADS_ADMOB_OFF := """Die Testanzeigen sind gerade ausgeschaltet; dann wird 
 
 const FOOTER := """Keine Käufe, keine Echtgeld-Währung, keine Energie-Sperren."""
 
+const APP_INFO_PATH := "res://data/app.json"
+
+
+## Owner-provided release info (data/app.json): privacy policy URL and contact.
+static func app_info(path := APP_INFO_PATH) -> Dictionary:
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+	if typeof(data) != TYPE_DICTIONARY:
+		return {"privacy_policy_url": "", "contact_email": ""}
+	return {"privacy_policy_url": str(data.get("privacy_policy_url", "")).strip_edges(),
+		"contact_email": str(data.get("contact_email", "")).strip_edges()}
+
 
 ## adapter: the active backend; active false: ads are switched off right now.
 static func text_for(adapter: String, active := true) -> String:
@@ -52,6 +63,15 @@ func _ready() -> void:
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(body)
+	var info := app_info()
+	if info.contact_email != "":
+		box.add_child(UiTheme.label("Kontakt: " + info.contact_email, 24, UiTheme.TEXT_DIM))
+	if info.privacy_policy_url.begins_with("https://"):
+		var policy := UiTheme.button("Vollständige Datenschutzerklärung")
+		policy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var url: String = info.privacy_policy_url
+		policy.pressed.connect(func(): OS.shell_open(url))  # opens the browser; the app itself needs no INTERNET
+		box.add_child(policy)
 	if active and ads.privacy_options_available():  # Google: only where it is required
 		var consent := UiTheme.button("Werbe-Einwilligung ändern")
 		consent.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

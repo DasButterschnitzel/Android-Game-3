@@ -36,6 +36,11 @@ func _ready() -> void:
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.add_child(body)
+	# Notices of the engine's third-party parts (FreeType, Mbed TLS, ...).
+	var licenses := UiTheme.button("Lizenzen der Engine-Bestandteile")
+	licenses.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	licenses.pressed.connect(func(): add_child(LicensesPanel.new()))
+	inner.add_child(licenses)
 	var back := UiTheme.primary_button("Zurück")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(queue_free)
