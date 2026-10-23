@@ -36,6 +36,8 @@ func _go() -> void:
 			SafeArea.override = Vector4(0, float(x.substr(9)), 0, 0)
 		if x.begins_with("text="):
 			UiTheme.set_text_scale(float(x.substr(5)))
+			if save:
+				save.set_setting("text_scale", float(x.substr(5)))
 	await process_frame
 	var vr := root.get_visible_rect()
 	print("SCREEN=", screen, " window=", DisplayServer.window_get_size(), " visible=", vr.size)

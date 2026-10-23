@@ -4,6 +4,68 @@ Alle Builds sind Debug-APKs (Debug-Zertifikat), nicht für den Store bestimmt. �
 automatische Tests, Bot-Simulationen und Linux-Smoke-Test des exportierten Builds. **Kein Build wurde bisher auf
 einem echten Android-Gerät oder Emulator gestartet** (keine KVM-Virtualisierung, kein Gerät in dieser Umgebung).
 
+## 0.7.0 – „Polish“ (2026-10-23)
+
+Grundlage: zwei unabhängige Prüfungen – Spielcode (QA, Agent H) und Werbung/Einwilligung (Agent I) – mit
+Reproduktionen; jeder Befund wurde vor der Korrektur im Code bestätigt, fast jede Korrektur hat einen Test, der ohne
+sie fehlschlägt.
+
+### Barrierefreiheit
+- **„Schrift: groß“** (Einstellungen): Menüs, Karten und Lehr-Zettel 20 % größer; die Einstellungsseite zeigt die
+  neue Größe sofort. Alle Seiten bleiben dabei vollständig auf dem Bildschirm (Test + Layout-Prüfung in vier Größen).
+- **Touch-Ziele mindestens 48 dp** auch auf 360-dp-Telefonen: alle Knöpfe, Schalter und Regler (vorher teils 28–46 dp).
+- **„Effekte: minimal“ ist wirklich ruhig:** kein Wackeln, keine Blitze (Treffer, Laterne), keine Druckwellen, kein
+  Flackern; Schlagringe bleiben als ruhige, gedämpfte Rückmeldung. Die Warnung der Flammen pulsiert höchstens mit
+  2 Hz (vorher 3 Hz), „reduziert“ 1 Hz, „minimal“ gar nicht. Die Einstellungen sagen, was jede Stufe bedeutet.
+- Kleinste Spieltexte größer (Ziffern der Echo-Schlagringe, Hinweise auf der Sternbilder-Seite).
+- Einstellungen und Credits halten Abstand zu Kamera-Aussparungen und Gestenleiste (wie alle anderen Seiten).
+- Nacht-Verlauf: Morgengrauen auch als Form (kleine Sonne), Ring markiert Vollmond-Nächte, Legende.
+- Neue Seite **„So geht's“** (Einstellungen) mit den echten Schatten-Symbolen.
+
+### Behoben
+- **Daumenwechsel mitten im Lauf** (zweiten Daumen auflegen, ersten heben): zündete ungewollt ein zweites Licht und
+  senkte den Multiplikator – oder ließ das Licht ohne die Einstellung „Zweiter Finger“ einfrieren. Der ruhende Finger
+  übernimmt jetzt das Licht.
+- Nie mehr als zwei Lichter gleichzeitig (mehrere gleichzeitig aufgelegte Finger konnten drei bis fünf entzünden).
+- Spielstand: Nach einem fehlgeschlagenen Schreibvorgang wurde bis zum Wechsel in den Hintergrund nichts mehr
+  gespeichert; jetzt versucht es die nächste Änderung erneut. Die vorherige Datei bleibt als letzte gute Kopie und
+  wird genutzt, falls die neueste nach einem Stromausfall leer oder kaputt ist.
+- Kein Ton, wenn Android die App ohne Fokus fortsetzt (z. B. hinter dem Sperrbildschirm).
+- Das geliehene Laternenpapier wird mit dem Start einer Nacht verbraucht, auch wenn sie abgebrochen wird.
+- Ergebniskarte passt auch, wenn eine Nacht sehr viel freischaltet (vorher ragte „Menü“ aus dem Bild).
+- Texte: gesperrte Sternbilder nennen ihr Ziel statt „geschafft“; „1 Licht“; Tipp und Ziel „Zweiter Finger“ nur mit
+  eingeschalteter Einstellung; Lautstärke-Regler „Soundeffekte“ statt eines zweiten „Effekte“.
+- Spielstände aus 0.2/0.3 erhalten die Sternbilder, die ihre Statistik schon belegt (z. B. Morgengrauen → Vollmond).
+- Ein durch Fokusverlust abgebrochener Finger konnte später doch noch einen Lauf starten; der Zeitgeber der
+  Ergebniskarte überlebte die Karte (beides gefunden von den neuen Lebenszyklus- und Dauertests).
+
+### Werbung und Einwilligung (Werbetest-Build)
+- **Kritisch:** Mit UMP 4.0.0 ist `canRequestAds()` bis zur Aktualisierung der Einwilligungsinformationen immer
+  falsch; da nur beim ersten Mal aktualisiert wurde, kam nach dem ersten App-Neustart nie wieder eine Anzeige. Jetzt
+  Aktualisierung bei jedem Start (Googles Vorgabe); eine abgelaufene Entscheidung wird erneut erfragt, eine
+  bestehende nicht doppelt.
+- Ein nach dem Zeitlimit geladenes Einwilligungsformular kann nicht mehr über der nächsten Nacht aufgehen; offline
+  wartet die Pause gar nicht mehr.
+- Anzeigen nur mit Entscheidung (nicht auf `canRequestAds()` allein); Inhalte höchstens Einstufung G;
+  Hauptschalter aus = kein Backend; „Einwilligung ändern“ nur, wo Google es verlangt; 5-Minuten-Abstand auch über
+  Neustarts; der geparkte LUNTE-Prototyp zeigt keine Werbung mehr.
+- Datenschutzerklärung, Data Safety, ADR 0004 und Werbetest-Dokumentation berichtigt (u. a. TDDDG, UMP-Abfrage beim
+  Start, tatsächliche Frequenz: erste Anzeige frühestens nach der 4. Nacht einer Sitzung).
+
+### Leistung und Akku
+- Der Bildschirm bleibt nur während einer Nacht an; Pause und Ergebnis lassen das Telefon schlafen und rendern mit
+  30 fps (nur auf Telefonen).
+- Abfrage der sicheren Bildschirmränder zwischengespeichert (war auf Android ein JNI-Aufruf pro Frame).
+- Der Demo-Bot im Hauptmenü plant seine Läufe über mehrere Frames (Desktop: Median 0,31 ms statt 2,13 ms, Spitze
+  1,18 ms statt 3,54 ms pro Frame).
+
+### Release-Vorbereitung
+- Export-Preset „Android-Release“ (App Bundle) und `tools/build_release.sh`: Bau mit dem Upload-Schlüssel des Inhabers
+  (oder Wegwerf-Schlüssel nur zur Prüfung) und Prüfung mit bundletool, jarsigner, aapt2, apksigner.
+- CI prüft zusätzlich: Standard-APK ohne Werbe-SDK und ohne `INTERNET`, Release-Bundle baut und besteht die Prüfung.
+- Store-Screenshots (1080×1920) aus echten Bot-Aufnahmen; `tools/layout_check.sh` prüft jede Seite in vier
+  Bildschirmgrößen auf Überlauf, Überlappung und zu kleine Touch-Ziele.
+
 ## 0.6.0 – „Monetization Preview“ (2026-10-23)
 
 Keine echte Werbung: Die Test-APK zeigt deutlich markierte **Platzhalter** (offline, ohne Internet-Berechtigung).

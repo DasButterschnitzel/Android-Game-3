@@ -30,7 +30,8 @@ Eine **Nacht** = 5 Wellen. Drei Flammen. Ohne Flammen ist die Nacht vorbei; wer 
 | Nachglühen | 1,0 s | macht „zwei Orte zugleich“ zur echten Aufgabe |
 | Echo | wiederholt Weg **und** Trefferzeitpunkte exakt (feste Ereignisse) | vorhersagbar, monoton |
 | Multiplikator | nach Zahl der Lichter: ×6 / ×4 / ×3 / ×2 / ×1,5 / ×1; max. 6 Lichter je Welle | Push-your-luck |
-| Zweiter Finger | entzündet nach bewusstem Zug (≥ 40 px) ein zweites Licht im selben Lauf; zählt wie ein Lauf | Multitouch mit Nutzen, kein Exploit |
+| Zweiter Finger | entzündet nach bewusstem Zug (≥ 40 px) ein zweites Licht im selben Lauf; zählt wie ein Lauf; höchstens zwei Lichter gleichzeitig | Multitouch mit Nutzen, kein Exploit |
+| Daumenwechsel | hebt der lenkende Finger ab, übernimmt ein schon ruhender Finger sein Licht (kein neues Licht, nichts friert ein) | Umgreifen mit beiden Daumen ist normal |
 | Leben | 3 Flammen; Durchgekommene kosten beim Kassieren je eine | Risiko ist sichtbar an der Laterne |
 | Punkte | normal 10, Zwilling 15, gepanzert 25 | |
 
@@ -75,6 +76,18 @@ Streuung, damit das Onboarding ungestört bleibt. Bot-Belege: `docs/playtests/EC
 - Fehleingaben: Startring (bewusster Zug), verbrauchte Finger nach Laufende, Kassieren als eigener Button,
   Neustart-Sperre 0,9 s auf dem Ergebnis-Bildschirm.
 
+## 5a. Barrierefreiheit (Stand 0.7)
+- **Form vor Farbe:** Schatten-Typen, Echo-Nummern, Morgengrauen im Verlauf (Sonne) sind auch ohne Farbe
+  unterscheidbar; Farbsehschwächen mit dem Debug-Simulator geprüft (`docs/art/ART_REVIEW_0.4.md`).
+- **Effekte voll / reduziert / minimal:** „minimal“ ohne Wackeln, Blitze, Druckwellen und Flackern; kein Element
+  blinkt schneller als 2 Hz. Schlagringe bleiben als ruhige Rückmeldung (sie sind Spielinformation).
+- **Schrift normal / groß** (+20 % für Menüs, Karten, Lehr-Zettel); der HUD im Lauf bleibt bewusst fest.
+- **Touch-Ziele ≥ 48 dp** auf 360-dp-Telefonen (`UiTheme.TOUCH_MIN`), sichere Bildschirmränder auf allen Seiten.
+- **Ohne Ton spielbar** (alles Hörbare auch sichtbar), Vibration abschaltbar, Lautstärken getrennt.
+- **Motorik:** relative Steuerung mit drei Empfindlichkeiten, Daumenwechsel ohne Strafe, zweites Licht abschaltbar,
+  bewusste Gesten statt Antippen für folgenreiche Aktionen (Startring, Kassieren-Knopf).
+- Nicht vorhanden: Bildschirmleser-Unterstützung (Godot 4.7 bietet sie auf Android nicht).
+
 ## 6. Onboarding (ohne Tutorial-Bildschirme)
 Die Lehr-Welle lehrt selbst. Hinweise erscheinen einmalig im Moment, in dem sie gebraucht werden (gespeichert);
 als Zettel in der nächsten Pause, wobei der neueste gewinnt (ein Zettel gilt erst nach 1 s Sichtbarkeit als gelesen):
@@ -95,8 +108,8 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
   **Leitmotiv**: reihum Ketten, Zangen oder Regen – im Menü angekündigt, kein Streak, keine Strafe fürs Auslassen.
 - **Nächstes Ziel** auf der Ergebniskarte: das nächstliegende offene Sternbild mit Fortschritt („18 / 25 perfekte
   Wellen“) – konkret, ohne Uhr und ohne Druck.
-- **Nacht-Historie** auf der Seite „Sternbilder“: die letzten 15 Nächte als Balken (warm = Morgengrauen), Bestwert-Linie,
-  Durchschnitt der letzten 10 – Fortschritt sichtbar machen statt Tage zählen.
+- **Nacht-Historie** auf der Seite „Sternbilder“: die letzten 15 Nächte als Balken (warm mit Sonne = Morgengrauen, Ring =
+  Vollmond), Bestwert-Linie, Durchschnitt der letzten 10 – Fortschritt sichtbar machen statt Tage zählen.
 - Persönlicher Bestwert je Modus, Statistiken auf der Seite „Sternbilder“.
 - **Sternbilder** (10 Achievements) schalten **rein kosmetische** Laternenpapiere frei – kein Spielvorteil.
 - **Vollmond** (schwerer, freigeschaltet durch das erste Morgengrauen) als Ziel für Geübte.
@@ -104,9 +117,9 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 
 ## 9. Werbung (umgesetzt als Vorschau in 0.6, ADR 0004)
 - Nie während eines Laufs, nie direkt nach dem ersten Start, nie bei jedem Verlust.
-- Neue Spieler: die ersten 5 Nächte überhaupt werbefrei; pro Sitzung frühestens nach 3 Nächten, danach höchstens jede
-  4. Nacht und nie öfter als alle 5 Minuten (`AdPolicy`, getestet; ungünstigster Fall ≤ 12/h – die ursprünglichen
-  3 Minuten hätten verlierenden Spielern bis zu 20/h erlaubt). Nur beim Verlassen der Ergebniskarte, nie beim Abbruch
+- Neue Spieler: die ersten 5 Nächte überhaupt werbefrei; pro Sitzung frühestens nach der 4. Nacht, danach höchstens
+  jede 4. Nacht und nie öfter als alle 5 Minuten, auch über App-Neustarts (`AdPolicy`, getestet; ungünstigster Fall
+  ≤ 12/h – die ursprünglichen 3 Minuten hätten verlierenden Spielern bis zu 20/h erlaubt). Nur beim Verlassen der Ergebniskarte, nie beim Abbruch
   über das Pausemenü. Einwilligung wird erst nach der zweiten Nacht erfragt, nicht beim ersten Start;
   Rewarded nur auf Wunsch und rein kosmetisch (ein gesperrtes Laternenpapier eine Nacht lang). Werbung vollständig
   abschaltbar; Spiel funktioniert ohne Netz. Details und Frequenz-Analyse: `docs/compliance/ADS_AND_CONSENT.md`.

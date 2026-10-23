@@ -27,6 +27,9 @@ durchzuführen. Ergebnisse bitte in `docs/playtests/device_results_<version>.md`
 | B10 | Während eines Laufs zweiten Finger kurz auflegen, ohne zu ziehen | kein zweites Licht; erst ein Zug von ca. 4 mm entzündet es |
 | B11 | Gerät mit Kamera-Aussparung (Punch-Hole/Notch) | Punkte, Welle, Pause-Knopf und Zeitleiste liegen vollständig unter der Aussparung |
 | B12 | Gerät mit Gestenleiste unten | Kassieren-Button liegt vollständig darüber |
+| B13 | Im Lauf umgreifen: zweiten Daumen auflegen, dann den ersten heben und mit dem zweiten weiterziehen (ab 0.7) | dasselbe Licht folgt dem zweiten Daumen; **kein** zweites Licht, Multiplikator unverändert; auch mit ausgeschaltetem „Zweiter Finger“ |
+| B14 | Im Lauf drei Finger gleichzeitig auflegen und alle ziehen (ab 0.7) | höchstens zwei Lichter |
+| B15 | Alle Knöpfe mit dem Daumen treffen, auch auf einem kleinen Gerät, auch mit „Schrift: groß“ (ab 0.7) | kein Danebentippen; nichts abgeschnitten |
 
 ## C. Lebenszyklus
 | # | Schritt | Erwartung |
@@ -36,6 +39,8 @@ durchzuführen. Ergebnisse bitte in `docs/playtests/device_results_<version>.md`
 | C3 | App im Hintergrund vom System beenden lassen (Entwickleroptionen „Aktivitäten nicht behalten“) und neu starten | Bestwert und Einstellungen erhalten |
 | C4 | Flugmodus an, App starten, mehrere Runden | Spiel vollständig ohne Netz spielbar, keine Wartedialoge |
 | C5 | Bildschirm sperren während der Runde | Pause, kein Ton |
+| C6 | Gesperrt lassen, Gerät aufwecken, aber **nicht** entsperren (ab 0.7) | weiterhin kein Ton, solange der Sperrbildschirm zu sehen ist |
+| C7 | Im Pausemenü bzw. auf der Ergebniskarte liegen lassen (ab 0.7) | Bildschirm geht nach der System-Zeit aus; während einer Nacht bleibt er an |
 
 ## D. Audio
 | # | Schritt | Erwartung |
@@ -77,6 +82,8 @@ notieren: Zeit bis zum Verstehen, erste Reaktion, Anzahl freiwilliger Runden, �
 | G4 | System-Farbkorrektur „Graustufen“ bzw. Deuteranomalie einschalten (oder Testperson mit Farbsehschwäche) | die drei Geistertypen, Echo vs. eigenes Licht und Flamme vs. leerer Slot bleiben unterscheidbar |
 | G5 | Kleines (≤ 5,5″) und großes (≥ 6,7″) Display | nichts abgeschnitten; Spielfeld gleich groß, nur die Ränder wachsen |
 | G6 | Sternbilder-Seite öffnen, Laternenpapier wechseln | Papier wirkt sofort im Menü und im Spiel; gesperrte Papiere nennen ihre Bedingung |
+| G7 | „Effekte: minimal“ (ab 0.7), eine Nacht mit Lecks spielen | kein Wackeln, kein Blitzen, kein Flackern der Flammen; Treffer bleiben als ruhige Ringe erkennbar |
+| G8 | „Schrift: groß“ (ab 0.7) | Menüs, Karten und Lehr-Zettel deutlich größer; alles passt auf den Bildschirm |
 
 ## Vorlage Ergebnisprotokoll
 ```

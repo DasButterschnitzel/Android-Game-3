@@ -13,8 +13,29 @@ als getestet.** Bots und Simulationen sind keine Menschen.
 | Simulation | `tests/simulation/sim_echo.gd` + `tools/sim/summarize_echo.py` (Abnahmekriterien automatisch) |
 | Bild/Video | `tools/capture.sh` (Xvfb + llvmpipe, Godot Movie Maker): Bot spielt über die echte Touch-Pipeline |
 | APK-Prüfung | `tools/build_android.sh`: aapt2 (Paket, SDK, Berechtigungen, Icon), apksigner (Signatur), Liste nativer Bibliotheken |
-| CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Artefakt-Upload |
+| CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Werbe-SDK-Prüfung des Standard-APK, Release-Bundle (Wegwerf-Schlüssel) mit Prüfung, Artefakt-Upload |
 | Android-Gerät / Emulator | **nicht verfügbar** (keine KVM, kein Gerät). Gerätetests: `docs/playtests/DEVICE_TEST_PLAN.md` |
+
+## 0.7.0 (2026-10-23)
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Unit- und Integrationstests | `run_tests.gd` | **173 / 173 grün**. Neu u. a. (jeweils geprüft, dass der Test ohne die Korrektur fehlschlägt): Daumenwechsel übernimmt das Licht (mit und ohne „Zweiter Finger“), höchstens zwei Lichter; Spielstand: letzte gute Kopie nach kaputter neuester Datei, erneuter Versuch nach fehlgeschlagenem Schreiben; Werbung: UMP-4-artiges Fake-Plugin, späterer App-Start bekommt Anzeigen ohne zweite Frage, abgelaufene Entscheidung wird neu erfragt, offline wartet die Pause nicht, verspätete Antwort bleibt synchron, Hauptschalter → kein Backend, Zeitabstand über Neustarts. Außerdem: Effekt-Stufen (minimal ohne Blitze/Druckwellen/Flackern, ≤ 2 Hz), Touch-Ziele ≥ 48 dp auf allen Seiten, sichere Ränder für alle Seiten, große Schrift (alle Seiten passen, Ergebniskarte mit allen Freischaltungen passt), Ton erst mit Fokus, Leihpapier, Texte, alte Spielstände |
+| Layout-Prüfung | `tools/layout_check.sh` und `tools/layout_check.sh <dir> text=1.2` | 11 Seiten × 4 Größen (720×1280, 1080×2400, 480×854, 1536×2048), normal und groß: **kein** Element außerhalb des Bildschirms, keine Überlappung, kein Touch-Ziel unter 48 dp (`docs/media/nachhall_0.7.0_large_text.jpg`) |
+| Dauertest | `tools/soak.sh` (30 Bot-Nächte, echte Spielszene) | `SOAK OK`: Knoten 49 → 49, Objekte +8, Ressourcen 93 → 93, verwaiste Knoten 0, Speicher 41,7 → 42,6 MB, keine Fehler |
+| Smoke-Test exportierter Build | `tools/smoke_exported.sh` | `SMOKE OK` (alle Szenen, Bot-Nacht, Werbe-Platzhalter mit Einwilligung und Interstitial) |
+| Demo-Bot im Menü | Messskript (headless, Desktop, 120 Läufe) | Planung bisher 2,13 ms Median / 3,54 ms Spitze in einem Frame; jetzt 0,31 / 1,18 ms pro Frame, verteilt |
+| Standard-APK | `tools/build_android.sh game builds/android/nachhall-0.7.0-debug.apk debug` | 60.203.751 Bytes, SHA-256 `501b38a2…a707`, versionCode 70, Signatur gültig (Debug), nur `VIBRATE`, **0 Werbe-SDK-Klassen, kein `INTERNET`** |
+| Werbetest-APK | `tools/build_ads_test.sh builds/android/nachhall-adstest-0.7.0-debug.apk` | 70.797.415 Bytes, SHA-256 `350b382c…2e9b`, Plugin mit neuen Methoden (`refresh_consent`, `cancel_consent`, `is_privacy_options_required`, dexdump), verpackte `ads.json` nur mit Google-Test-IDs |
+| Release-Bundle | `tools/build_release.sh builds/release/nachhall-0.7.0-release.aab --throwaway` | 54.933.897 Bytes, SHA-256 `ba181385…7766`, `bundletool validate`: gültig, versionCode 70, minSdk 24, targetSdk 36, nur `VIBRATE`; Universal-APK daraus: nicht debuggable, apksigner ok; 242 Projektdateien, 0 aus `tests/`/`prototypes/`. **Mit Wegwerf-Schlüssel signiert – nur Prüfung, nicht hochladen.** |
+| CI | GitHub Actions | prüft jetzt zusätzlich Standard-APK ohne Werbe-SDK und das Release-Bundle (Lauf für `b2820e9` grün) |
+
+Berichte: `docs/builds/nachhall-0.7.0-*`, `docs/builds/nachhall-adstest-0.7.0-*`.
+
+**Nicht getestet:** alles auf einem echten Gerät – insbesondere Daumenwechsel mit echten Fingern, Bildschirm-Timeout
+in Pause/Ergebnis, Ton hinter dem Sperrbildschirm, Lesbarkeit von „Schrift: groß“, die Werbetest-APK mit UMP und
+Testanzeigen (Neustart-Fall, langsames Netz) und die Wirkung der 30-fps-Begrenzung. Checklisten:
+`docs/playtests/DEVICE_TEST_PLAN.md` (neu: B13–B15, C6, C7, G7, G8) und `docs/compliance/ADS_TEST_BUILD.md` §8.
 
 ## 0.6.0 (2026-10-23)
 

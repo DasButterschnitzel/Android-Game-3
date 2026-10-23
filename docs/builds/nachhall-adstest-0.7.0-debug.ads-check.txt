@@ -1,0 +1,49 @@
+# nachhall-adstest-0.7.0-debug.apk
+size_bytes: 70797415
+sha256: 350b382c997c7ba6b1614641a5d126f8dd3ffab585dfaeca7434d4aabe682e9b
+
+## aapt2 dump badging (excerpt)
+package: name='io.github.dasbutterschnitzel.nachhall.adstest' versionCode='70' versionName='0.7.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.VIBRATE'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='com.google.android.gms.permission.AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_ATTRIBUTION'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_TOPICS'
+uses-permission: name='android.permission.WAKE_LOCK'
+uses-permission: name='android.permission.FOREGROUND_SERVICE'
+uses-permission: name='io.github.dasbutterschnitzel.nachhall.adstest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+application-label:'Nachhall Werbetest'
+
+## manifest meta-data / ad ids (aapt2 dump xmltree)
+  "org.godotengine.rendering.method" = "gl_compatibility"
+  "org.godotengine.editor.version" = "4.7.2.stable"
+  "com.google.android.gms.ads.APPLICATION_ID" = "ca-app-pub-3940256099942544~3347511713"
+  "org.godotengine.library.version" = "4.7.2.stable"
+  "android.support.FILE_PROVIDER_PATHS" = @0x7f0f0000
+  "org.godotengine.plugin.v2.NachhallAds" = "io.github.dasbutterschnitzel.nachhall.ads.NachhallAdsPlugin"
+  "com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING" = true
+  "com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION" = true
+  "com.google.android.gms.version" = @0x7f090001
+  "androidx.work.WorkManagerInitializer" = "androidx.startup"
+  "androidx.profileinstaller.ProfileInstallerInitializer" = "androidx.startup"
+
+## dex classes
+total: 16526
+com/google/android/gms/ads/*: 658
+com/google/android/ump/*: 19
+NachhallAdsPlugin: 1
+  com/google/android/gms/ads/AdActivity
+  com/google/android/gms/ads/MobileAds
+  com/google/android/gms/ads/interstitial/InterstitialAd
+  com/google/android/ump/UserMessagingPlatform
+  io/github/dasbutterschnitzel/nachhall/ads/NachhallAdsPlugin
+
+## assets/project.binary (feature tag, boot scene override)
+  _custom_features
+  nachhall_ads
+  res://addons/nachhall_ads/plugin.cfg
+packaged ads.json ids: ca-app-pub-3940256099942544/1033173712 ca-app-pub-3940256099942544/5224354917 ca-app-pub-3940256099942544~3347511713 

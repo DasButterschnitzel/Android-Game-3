@@ -1,0 +1,47 @@
+# Verification of nachhall-adstest-0.7.0-debug.apk
+size_bytes: 70797415
+sha256: 350b382c997c7ba6b1614641a5d126f8dd3ffab585dfaeca7434d4aabe682e9b
+
+## aapt2 dump badging
+package: name='io.github.dasbutterschnitzel.nachhall.adstest' versionCode='70' versionName='0.7.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.VIBRATE'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='com.google.android.gms.permission.AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_ATTRIBUTION'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_TOPICS'
+uses-permission: name='android.permission.WAKE_LOCK'
+uses-permission: name='android.permission.FOREGROUND_SERVICE'
+uses-permission: name='io.github.dasbutterschnitzel.nachhall.adstest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+application-label:'Nachhall Werbetest'
+application: label='Nachhall Werbetest' icon='res/mipmap-anydpi-v26/icon.xml'
+native-code: 'arm64-v8a' 'armeabi-v7a'
+
+## permissions
+package: io.github.dasbutterschnitzel.nachhall.adstest
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.VIBRATE'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='com.google.android.gms.permission.AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_AD_ID'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_ATTRIBUTION'
+uses-permission: name='android.permission.ACCESS_ADSERVICES_TOPICS'
+uses-permission: name='android.permission.WAKE_LOCK'
+uses-permission: name='android.permission.FOREGROUND_SERVICE'
+permission: io.github.dasbutterschnitzel.nachhall.adstest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+uses-permission: name='io.github.dasbutterschnitzel.nachhall.adstest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+
+## apksigner verify
+Signer #1 certificate DN: CN=Android Debug, O=Android, C=US
+Signer #1 certificate SHA-256 digest: 26a6dc565069520add36bb1444579522fa37209a35cc811ee8974f793ba84f94
+Signer #1 certificate SHA-1 digest: 5f8c4b36a0e22555876de734faaa00642928ae27
+Signer #1 certificate MD5 digest: a089dade295139df35e1f9744ac4156e
+
+## native libs
+  1374336  1981-01-01 01:01   lib/arm64-v8a/libc++_shared.so
+ 76181608  1981-01-01 01:01   lib/arm64-v8a/libgodot_android.so
+   963028  1981-01-01 01:01   lib/armeabi-v7a/libc++_shared.so
+ 82451424  1981-01-01 01:01   lib/armeabi-v7a/libgodot_android.so

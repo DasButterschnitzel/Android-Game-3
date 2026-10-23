@@ -76,8 +76,12 @@ dass alte Runden freigegeben werden).
 
 ## Speicherstand
 `SaveStore`: ein JSON-Dokument in `user://save.json` mit Schema-Version (aktuell 2). Schreiben über Temp-Datei +
-Umbenennen (atomar). Unbekannte Schlüssel fallen weg, fehlende werden ergänzt, defekte Dateien werden beiseitegelegt.
-Bei App-Pause wird sofort gespeichert. Debug-Builds können per Startargument `save=<datei>` (und `fresh_save`) eine
+Umbenennen (atomar); die vorherige Datei bleibt als `save.json.bak` (letzte gute Kopie – GDScript kann kein fsync,
+nach einem Stromausfall kann die neueste Datei leer sein). Laden: Hauptdatei, sonst die Kopie, sonst Standardwerte;
+defekte Dateien werden beiseitegelegt (`.corrupt`). Unbekannte Schlüssel fallen weg, fehlende werden ergänzt,
+Sternbilder, die die Statistik belegt, werden nachgetragen (`Progression.backfill`). Änderungen werden am Ende des
+Frames gebündelt gespeichert; nach einem fehlgeschlagenen Schreiben versucht es die nächste Änderung erneut. Bei
+App-Pause wird sofort gespeichert. Debug-Builds können per Startargument `save=<datei>` (und `fresh_save`) eine
 eigene Datei nutzen – Tests, Aufnahmen und Smoke-Test berühren so nie echte Spielstände.
 
 ## Zurück-Taste und sicherer Bereich
@@ -85,14 +89,32 @@ eigene Datei nutzen – Tests, Aufnahmen und Smoke-Test berühren so nie echte S
   (`quit_on_go_back` ist aus). `handle_back()` fragt den obersten sichtbaren Knoten der Gruppe `back_handler`
   (`on_back()`): Spiel → Pause/Weiter, Overlays → schließen, Hauptmenü → App verlassen.
 - `SafeArea` rechnet `DisplayServer.get_display_safe_area()` in Viewport-Einheiten um: HUD und Spielfeld rücken unter
-  eine Kamera-Aussparung, der Kassieren-Button über die Gestenleiste. Tests setzen `SafeArea.override`.
+  eine Kamera-Aussparung, der Kassieren-Button über die Gestenleiste, alle Seiten halten Abstand. Das Ergebnis wird
+  eine Sekunde lang wiederverwendet (auf Android ist jede Abfrage ein JNI-Aufruf, der HUD fragt jeden Frame). Tests
+  setzen `SafeArea.override`.
+- Oberfläche: `UiTheme` baut das Theme im Code; `TOUCH_MIN` (96 Einheiten = 48 dp auf 360-dp-Telefonen) ist die
+  Mindesthöhe jedes Knopfes, `fs()` skaliert Schriftgrößen mit der Einstellung „Schrift“ (`text_scale`, gesetzt von
+  `GameFlow` vor dem ersten Bildschirm).
 
 ## Lebenszyklus (Android)
-- `NOTIFICATION_APPLICATION_PAUSED` / `FOCUS_OUT`: laufender Lauf → Pause-Menü; sonst alle Zeiger abbrechen;
-  `AudioDirector` stummt den Master-Bus; `SaveStore` speichert sofort.
-- Zurückkehren: Ton wieder an (Stummschaltung aus den Einstellungen bleibt), Spiel bleibt pausiert bis „Weiter“.
+- `NOTIFICATION_APPLICATION_PAUSED` / `FOCUS_OUT`: laufender Lauf → Pause-Menü; sonst alle Zeiger abbrechen (sie
+  zählen erst nach dem Abheben wieder); `AudioDirector` stummt den Master-Bus; `SaveStore` speichert sofort.
+- Zurückkehren: Ton erst wieder an, wenn die App fortgesetzt **und** fokussiert ist (nicht hinter dem
+  Sperrbildschirm); die Stummschaltung aus den Einstellungen bleibt; das Spiel bleibt pausiert bis „Weiter“.
+- Akku (nur Telefone): `EchoGame.power_for(state)` – Bildschirm bleibt nur während einer Nacht an
+  (`screen_set_keep_on`), Pause und Ergebnis rendern mit 30 fps; Menüs lassen das Telefon schlafen.
+
+## Werbung (Kurzfassung, Details in ADR 0004 und `docs/compliance/`)
+- `AdService` (Autoload `Ads`) mit Adaptern `none` / `mock` (Platzhalter, Debug) / `admob` (Werbetest-Build, eigenes
+  Plugin). Hauptschalter aus → kein Adapter; ein Adapter startet erst, wenn Werbung eingeschaltet ist (`start()`).
+- AdMob/UMP: Aktualisierung der Einwilligungsinformationen bei jedem Start (ohne Formular); die frische Auskunft
+  synchronisiert den gespeicherten Stand (`consent_info_changed`); Formular nur an einer Pause, abbrechbar
+  (`cancel_consent`); Anzeigen nur mit Entscheidung. `AdPolicy` entscheidet die Frequenz (Zeitabstand auch über
+  Neustarts, `ads.last_interstitial_unix`).
 
 ## Tests und Werkzeuge
 Siehe `TEST_REPORT.md`. Kurz: Unit- und Integrationstests (echte Touch-Pipeline), Compile-Check aller Skripte,
-Bot-Simulationen mit automatisch geprüften Abnahmekriterien, Smoke-Test im exportierten Build, Video-Aufnahme unter
-Xvfb, APK-Prüfung mit aapt2/apksigner, CI auf GitHub Actions.
+Bot-Simulationen mit automatisch geprüften Abnahmekriterien, Smoke-Test im exportierten Build, Dauertest über 30
+Nächte (`tools/soak.sh`), Layout-Prüfung jeder Seite in vier Bildschirmgrößen (`tools/layout_check.sh`),
+Video-Aufnahme unter Xvfb, APK-Prüfung mit aapt2/apksigner, Werbe-SDK-Prüfung (`tools/verify_ads_build.sh`),
+Release-Bundle mit bundletool (`tools/build_release.sh`), CI auf GitHub Actions.
