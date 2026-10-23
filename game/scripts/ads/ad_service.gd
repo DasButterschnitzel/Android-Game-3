@@ -9,11 +9,15 @@ extends Node
 ## Adapters: "none" (no ads at all), "mock" (offline placeholder clearly marked
 ## as a test, for debug builds and tests), "admob" (Android plugin with
 ## Google's public test ad units only; see docs/compliance/ADS_AND_CONSENT.md).
+## The experimental "Android-AdsTest" export (feature tag "nachhall_ads") uses
+## "adapter_ads_test" and "ads_test_overrides" from the config instead
+## (docs/compliance/ADS_TEST_BUILD.md).
 
 signal consent_changed(status: String)
 signal interstitial_closed(shown: bool)
 
 const CONFIG_PATH := "res://data/ads.json"
+const ADS_TEST_FEATURE := "nachhall_ads"
 
 var policy := AdPolicy.new()
 var config: Dictionary = {}
@@ -30,12 +34,25 @@ func _ready() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if typeof(data) == TYPE_DICTIONARY:
 			config = data
+	var ads_test := OS.has_feature(ADS_TEST_FEATURE)
+	if ads_test:
+		config = ads_test_config(config)
 	policy.configure(config)
 	var save := _save()
 	if save:
 		policy.lifetime_rounds = int(save.data.stats.rounds_played)
-	var wanted := str(config.get("adapter_debug" if OS.is_debug_build() else "adapter_release", "none"))
-	use_adapter(wanted)
+	var key := "adapter_ads_test" if ads_test else ("adapter_debug" if OS.is_debug_build() else "adapter_release")
+	use_adapter(str(config.get(key, "none")))
+
+
+## Config of the experimental ads test build: "ads_test_overrides" (shorter
+## intervals so a device test reaches consent and an ad quickly) on top.
+static func ads_test_config(base: Dictionary) -> Dictionary:
+	var merged := base.duplicate(true)
+	var overrides = merged.get("ads_test_overrides", {})
+	if overrides is Dictionary:
+		merged.merge(overrides, true)
+	return merged
 
 
 func _process(delta: float) -> void:

@@ -1,6 +1,12 @@
 # Godot
 game/.godot/
 *.import.tmp
+# Android Gradle build template (installed by godot --install-android-build-template)
+game/android/
+# Android plugin build outputs (the AARs that matter are copied to game/addons/*/bin/)
+android_plugins/**/build/
+android_plugins/**/.gradle/
+android_plugins/**/local.properties
 # Build outputs (APKs are delivered via CI artifacts / direct handoff, not git)
 builds/**/*.apk
 builds/**/*.apk.idsig
@@ -15,3 +21,4 @@ __pycache__/
 builds/linux/
 # Build reports are copied to docs/builds/ for releases worth keeping
 builds/**/*.verify.txt
+builds/**/*.ads-check.txt

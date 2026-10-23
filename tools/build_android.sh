@@ -11,6 +11,9 @@ MODE="${3:-debug}"
 PRESET="${4:-Android}"
 ANDROID_SDK="${ANDROID_HOME:-/opt/android-sdk}"
 GODOT="${GODOT:-godot}"
+# Optional extra export arguments, e.g. --install-android-build-template for
+# presets with "Use Gradle Build" (tools/build_ads_test.sh). Empty by default.
+read -r -a EXPORT_ARGS <<< "${GODOT_EXPORT_ARGS:-}"
 
 # Prefer the build-tools version installed by setup_toolchain.sh: newer ones may
 # need a newer JDK than the one used for the build.
@@ -32,7 +35,7 @@ rm -f "$OUT" "$OUT.idsig"
   "$GODOT" --headless --path "$PROJECT_DIR" --import 2>&1 | grep -vE '^\s*$' | tail -20 || true
   echo
   echo "## export"
-  "$GODOT" --headless --path "$PROJECT_DIR" "--export-$MODE" "$PRESET" "$OUT" 2>&1 \
+  "$GODOT" --headless --path "$PROJECT_DIR" "${EXPORT_ARGS[@]}" "--export-$MODE" "$PRESET" "$OUT" 2>&1 \
     | grep -vE 'ADDING: |JAVA_TOOL_OPTIONS|^\s*$' || true
 } > "$LOG" 2>&1
 

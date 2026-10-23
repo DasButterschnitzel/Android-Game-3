@@ -1,0 +1,19 @@
+// NachhallAds: Godot 4 Android plugin (v2) wrapping Google Mobile Ads + UMP.
+// Experimental test builds only; see docs/compliance/ADS_TEST_BUILD.md.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// The AAR file names derive from this: NachhallAds-debug.aar / NachhallAds-release.aar.
+rootProject.name = 'NachhallAds'

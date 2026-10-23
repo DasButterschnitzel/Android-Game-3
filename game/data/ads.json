@@ -1,7 +1,8 @@
 {
-  "_comment": "Ad configuration. adapter: none | mock | admob. Real ad unit IDs only after the owner's approval; the admob ids below are Google's public TEST ids.",
+  "_comment": "Ad configuration. adapter: none | mock | admob. Real ad unit IDs only after the owner's approval; the admob ids below are Google's public TEST ids. adapter_ads_test and ads_test_overrides apply only to the experimental Android-AdsTest export (docs/compliance/ADS_TEST_BUILD.md).",
   "adapter_debug": "mock",
   "adapter_release": "none",
+  "adapter_ads_test": "admob",
   "interstitials_enabled": true,
   "rewarded_enabled": false,
   "min_rounds_before_first": 3,
@@ -10,9 +11,17 @@
   "min_lifetime_rounds": 5,
   "consent_after_rounds": 2,
   "mock_close_after": 2.0,
+  "ads_test_overrides": {
+    "consent_after_rounds": 1,
+    "min_lifetime_rounds": 2,
+    "min_rounds_before_first": 2,
+    "rounds_between": 2,
+    "min_seconds_between": 60.0
+  },
   "admob_test_ids": {
     "app_id": "ca-app-pub-3940256099942544~3347511713",
     "interstitial": "ca-app-pub-3940256099942544/1033173712",
     "rewarded": "ca-app-pub-3940256099942544/5224354917"
-  }
+  },
+  "admob_test_device_hashed_ids": []
 }

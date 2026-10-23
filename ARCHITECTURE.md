@@ -27,7 +27,8 @@ game/
     save/        SaveStore (Autoload "Save")
     audio/       AudioDirector (Autoload "Audio")
     systems/     Haptics
-    ads/         AdPolicy (Frequenzregeln, getestet; SDK-Anbindung folgt in 0.6)
+    ads/         AdPolicy (Frequenzregeln, getestet), AdService/Adapter; AdMobAdapter + Startszene nur im
+                 Werbetest-Build "Android-AdsTest" (docs/compliance/ADS_TEST_BUILD.md)
     ui/          UiTheme (Theme in Code, Schrift Fredoka)
     gameplay/
       echo/      NACHHALL: EchoSim (Regeln), EchoBot (Simulation/Aufnahme), EchoGame (Controller),
@@ -35,8 +36,10 @@ game/
       fx/        SparkParticles, ArtKit (Glow, Skyline), FireworkArt (LUNTE)
       fuse/, lunte/  LUNTE (geparkt, nur Debug-Labor)
   prototypes/    Debug-Labor mit geparkten Prototypen (LUNTE, SCHWARM)
+  addons/nachhall_ads/  Editor-Export-Plugin + AARs des Werbetest-Builds (wirkt nur auf Preset "Android-AdsTest")
   assets/        Schriften (OFL), Shader, Klänge, Icons – alles eigen erzeugt außer der Schrift
   tests/         unit/, integration/, simulation/, capture/, Runner
+android_plugins/nachhall_ads/  Quelltext des Android-Plugins (Java, Gradle) für Google Mobile Ads + UMP
 tools/           Toolchain-Setup, APK-Build+Prüfung, Smoke-Test, Aufnahme, Audio- und Icon-Generatoren, Sim-Auswertung
 docs/            Recherche, Konzepte, Entscheidungen (ADR), Playtests, Builds, Medien
 ```

@@ -12,8 +12,9 @@ func is_available() -> bool:
 	return true
 
 
-## Returns "granted", "denied" or "not_required". force: show the form even if
-## a decision exists (privacy options).
+## Returns "granted", "denied" or "not_required"; "unknown" if no decision was
+## possible now (e.g. offline), so AdService asks again at a later break.
+## force: show the form even if a decision exists (privacy options).
 func request_consent(_force := false) -> String:
 	return "not_required"
 

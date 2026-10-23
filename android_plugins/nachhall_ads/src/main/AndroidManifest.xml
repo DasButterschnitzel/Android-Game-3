@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Godot plugin v2 registration: name suffix == getPluginName(). -->
+        <meta-data
+            android:name="org.godotengine.plugin.v2.NachhallAds"
+            android:value="io.github.dasbutterschnitzel.nachhall.ads.NachhallAdsPlugin" />
+        <!-- The AdMob app id (Google's public TEST id) is added by the Godot export
+             plugin (game/addons/nachhall_ads), not here, so this AAR holds no ids. -->
+    </application>
+
+</manifest>

@@ -50,3 +50,6 @@ Nicht erlaubt: Multiplikator-Boni, mehr Lichter, Werbung für Grundfunktionen.
   von Google). Ohne Plugin im Build fällt der Dienst automatisch auf „keine Werbung“ zurück.
 - Alle Entscheidungen über `AdPolicy`; Laden im Hintergrund, Timeout, keine Blockade.
 - Ehrlich: Ob die AdMob-Integration auf dem Gerät funktioniert, kann ohne Gerät/Emulator nicht geprüft werden.
+- Spike (Agent E2, 2026-10-23): separater Werbetest-Build `Android-AdsTest` mit echtem Google Mobile Ads SDK + UMP
+  über ein eigenes Godot-Android-Plugin, nur Google-Test-IDs, auf Build-Ebene geprüft; Standard-Build unverändert.
+  Details, Befehle, offene Punkte: `ADS_TEST_BUILD.md`.

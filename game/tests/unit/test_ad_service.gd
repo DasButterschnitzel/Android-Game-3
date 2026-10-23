@@ -32,6 +32,24 @@ func test_admob_without_plugin_falls_back_to_none() -> void:
 	assert_eq(ads.adapter_name, "none", "no plugin in this build -> no ads")
 
 
+## Hard rule until the owner decides otherwise: every AdMob id in the shipped
+## config is one of Google's public test ids, and release builds have no ads.
+func test_config_holds_only_google_test_ids() -> void:
+	assert_eq(ads.config.get("adapter_release"), "none", "release builds: no ad backend")
+	var ids: Dictionary = ads.config.admob_test_ids
+	assert_true(str(ids.app_id).begins_with("ca-app-pub-3940256099942544~"), "app id is Google's test app id")
+	for key in ids:
+		assert_true(str(ids[key]).begins_with("ca-app-pub-3940256099942544"), "%s is a Google test id" % key)
+
+
+func test_ads_test_build_config() -> void:
+	var cfg := AdService.ads_test_config(ads.config)
+	assert_eq(cfg.get("adapter_ads_test"), "admob", "the Android-AdsTest build uses the AdMob plugin")
+	assert_eq(int(cfg.consent_after_rounds), 1, "test overrides applied")
+	assert_eq(int(ads.config.consent_after_rounds), 2, "normal config untouched")
+	assert_false(OS.has_feature(AdService.ADS_TEST_FEATURE), "tests do not run as the ads test build")
+
+
 func test_mock_asks_consent_once_then_respects_caps() -> void:
 	ads.use_adapter("mock")
 	var mock := ads.get_child(ads.get_child_count() - 1) as MockAdAdapter

@@ -76,6 +76,13 @@ if [ ! -x "$ANDROID_SDK/build-tools/$BUILD_TOOLS/apksigner" ] || [ ! -d "$ANDROI
   yes | "$SDKM" --sdk_root="$ANDROID_SDK" --licenses >/dev/null 2>&1 || true
   "$SDKM" --sdk_root="$ANDROID_SDK" "platform-tools" "build-tools;$BUILD_TOOLS" "platforms;$PLATFORM"
 fi
+# Optional (WITH_GRADLE=1): Gradle builds such as the experimental preset
+# "Android-AdsTest" (tools/build_ads_test.sh) compile against android-36, the
+# compileSdk of the Godot 4.7.2 Gradle build template.
+if [ "${WITH_GRADLE:-0}" = "1" ] && [ ! -d "$ANDROID_SDK/platforms/android-36" ]; then
+  yes | "$SDKM" --sdk_root="$ANDROID_SDK" --licenses >/dev/null 2>&1 || true
+  "$SDKM" --sdk_root="$ANDROID_SDK" "platforms;android-36"
+fi
 
 echo "== Debug keystore"
 KEYSTORE="$HOME/.android/debug.keystore"

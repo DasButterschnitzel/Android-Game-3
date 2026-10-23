@@ -1,0 +1,28 @@
+# nachhall-debug.apk
+size_bytes: 60346710
+sha256: 800223d06376fdf472af8d5c5f0b306a3f38401716ce626a65442c3299f86667
+
+## aapt2 dump badging (excerpt)
+package: name='io.github.dasbutterschnitzel.nachhall' versionCode='30' versionName='0.3.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+application-label:'Nachhall'
+uses-permission: name='android.permission.VIBRATE'
+
+## manifest meta-data / ad ids (aapt2 dump xmltree)
+  "org.godotengine.library.version" = "4.7.2.stable"
+  "android.support.FILE_PROVIDER_PATHS" = @0x7f0e0000
+  "androidx.profileinstaller.ProfileInstallerInitializer" = "androidx.startup"
+  "org.godotengine.rendering.method" = "gl_compatibility"
+  "org.godotengine.editor.version" = "4.7.2.stable"
+
+## dex classes
+total: 3887
+com/google/android/gms/ads/*: 0
+com/google/android/ump/*: 0
+NachhallAdsPlugin: 0
+
+## assets/project.binary (feature tag, boot scene override)
+  application/run/main_scene.nachhall_ads0
+  res://scenes/ads_test/ads_test_boot.tscn
+  res://addons/nachhall_ads/plugin.cfg

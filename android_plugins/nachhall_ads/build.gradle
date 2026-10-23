@@ -1,0 +1,45 @@
+// Android library (AAR) for the Godot 4.7 Android plugin system v2.
+// Versions follow the Godot 4.7.2 Gradle build template (AGP 8.6.1, Gradle 8.11.1,
+// compileSdk 36, minSdk 24, Java 17) so that the AAR links cleanly into the app.
+plugins {
+    id 'com.android.library' version '8.6.1'
+}
+
+// Keep in sync with DEPENDENCIES in game/addons/nachhall_ads/export_plugin.gd:
+// the AAR only compiles against the SDKs; the export plugin adds them to the app.
+ext.versions = [
+    godot: '4.7.2.stable',
+    playServicesAds: '25.5.0',
+    ump: '4.0.0',
+]
+
+android {
+    namespace 'io.github.dasbutterschnitzel.nachhall.ads'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 24
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation']
+}
+
+dependencies {
+    // Provided at runtime by the Godot app itself (godot-lib from the export template).
+    compileOnly "org.godotengine:godot:$versions.godot"
+    // Added to the app as Maven dependencies by the Godot export plugin.
+    compileOnly "com.google.android.gms:play-services-ads:$versions.playServicesAds"
+    compileOnly "com.google.android.ump:user-messaging-platform:$versions.ump"
+}

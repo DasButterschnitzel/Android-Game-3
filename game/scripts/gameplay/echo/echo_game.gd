@@ -413,6 +413,9 @@ func _on_game_over(score: int, survived: bool) -> void:
 	targets.clear()
 	audio.round_over(survived)
 	round_finished.emit(score, is_best)
+	var ads := get_node_or_null("/root/Ads")
+	if ads and ads.has_method("on_round_finished"):  # only when an ad service exists
+		ads.on_round_finished()
 	_show_results(score, is_best, survived)
 
 
