@@ -34,7 +34,7 @@ func request_consent(force := false) -> String:
 		return auto_answer
 	var panel := _panel()
 	panel.add_child(UiTheme.label("Werbung & Datenschutz", 44, UiTheme.TEXT, true))
-	var text := "TEST-ABLAUF: Diese Version zeigt keine echte Werbung.\n\nIn der fertigen App fragt hier ein Einwilligungs-Dialog des Werbepartners, ob personalisierte Werbung gezeigt werden darf. Ohne Zustimmung gibt es nur allgemeine Werbung. Du kannst das jederzeit ändern: Einstellungen, dann „Datenschutz“ und „Werbe-Einwilligung ändern“."
+	var text := "TEST-ABLAUF: Diese Version zeigt keine echte Werbung.\n\nIn der fertigen App fragt hier ein Einwilligungs-Dialog des Werbepartners, ob personalisierte Werbung gezeigt werden darf. Ohne Zustimmung gibt es nur allgemeine Werbung. Du kannst das jederzeit ändern: Einstellungen, dann „Datenschutz & Werbung“ und „Werbe-Einwilligung ändern“."
 	if force:
 		text = "TEST-ABLAUF: Einwilligung ändern.\n\n" + text.get_slice("\n\n", 1)
 	var body := UiTheme.label(text, 26, UiTheme.TEXT_DIM, true)

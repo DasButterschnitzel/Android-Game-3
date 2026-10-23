@@ -392,3 +392,19 @@ func test_a_lent_paper_is_worn_for_exactly_one_night() -> void:
 	assert_eq(str(save.data.paper_trial), "", "and is returned afterwards")
 	game.new_round()
 	assert_ne(game.view._paper, Progression.PAPERS["gold"].paper, "next night: the own paper again")
+
+
+func test_results_card_closed_early_leaves_no_dangling_timer() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
+	game.sim.core_hp = 1
+	start_run_and_release()
+	await wait_run_end()
+	await frames(2)
+	game._on_bank_pressed()
+	await frames(2)
+	assert_eq(game.state, "results", "night over")
+	var menu_buttons: Array = game.ui_layer.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text == "Menü")
+	assert_true(menu_buttons.size() == 1 and (menu_buttons[0] as Button).disabled, "menu locked while the card is still invisible")
+	game._on_again()  # closed before the unlock (e.g. a bot or a future shortcut)
+	await get_tree().create_timer(1.3).timeout
+	assert_eq(game.state, "play", "next night runs; the old card's timer died with the card")

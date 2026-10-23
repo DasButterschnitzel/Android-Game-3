@@ -6,7 +6,8 @@ extends Node
 ## This keeps multitouch handling in one tested place:
 ## - each finger keeps its id from down to up,
 ## - missed "down" events (finger already on screen) are recovered,
-## - focus loss / app pause cancels every pointer so nothing stays "stuck".
+## - focus loss / app pause cancels every pointer so nothing stays "stuck";
+##   a cancelled finger stays ignored until it is lifted (no stray drags after returning).
 ## On desktop, project setting emulate_touch_from_mouse turns the mouse into pointer 0.
 
 signal pointer_down(p: Pointer)
@@ -34,6 +35,7 @@ class Pointer:
 
 var pointers: Dictionary = {}  # id -> Pointer
 var enabled := true
+var _cancelled_ids := {}  # ids cancelled while down: their drags are ignored until a new touch
 
 
 func _input(event: InputEvent) -> void:
@@ -46,6 +48,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_touch(e: InputEventScreenTouch) -> void:
+	_cancelled_ids.erase(e.index)  # lifted or touching anew: the finger counts again
 	if e.pressed:
 		if pointers.has(e.index):
 			# Missed release (can happen after focus changes): close the stale one first.
@@ -68,6 +71,8 @@ func _handle_touch(e: InputEventScreenTouch) -> void:
 func _handle_drag(e: InputEventScreenDrag) -> void:
 	var p: Pointer = pointers.get(e.index)
 	if p == null:
+		if _cancelled_ids.has(e.index):
+			return  # cancelled by focus loss or pause: must lift first
 		# Finger was already down when we started listening: adopt it.
 		if pointers.size() >= MAX_POINTERS:
 			return
@@ -108,6 +113,7 @@ func _cancel(p: Pointer) -> void:
 ## Cancels every active pointer (used on pause, focus loss, scene change).
 func cancel_all() -> void:
 	for p in pointers.values().duplicate():
+		_cancelled_ids[p.id] = true
 		_cancel(p)
 
 

@@ -535,13 +535,17 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	o.add_child(menu)
 	_overlay.modulate.a = 0.0
 	_dim.modulate.a = 0.0
-	# Short delay so a finger still on the screen cannot hit "again" by accident.
+	# Short delay so a finger still on the screen cannot hit a button of the
+	# (still invisible) card by accident. The tween lives and dies with the card.
 	again.disabled = true
-	var tw := create_tween()
+	menu.disabled = true
+	var tw := _overlay.create_tween()
 	tw.tween_interval(0.9)
 	tw.tween_property(_overlay, "modulate:a", 1.0, 0.25)
 	tw.parallel().tween_property(_dim, "modulate:a", 1.0, 0.25)
-	tw.tween_callback(func(): again.disabled = false)
+	tw.tween_callback(func():
+		again.disabled = false
+		menu.disabled = false)
 
 
 func _on_again() -> void:

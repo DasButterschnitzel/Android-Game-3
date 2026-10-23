@@ -44,6 +44,10 @@ func _ready() -> void:
 		box.add_child(_control_row())  # only the parked LUNTE lab scene uses it
 		box.add_child(_cvd_row())
 		box.add_child(_toggle("Werbe-Platzhalter (Test)", "ads_preview"))
+	var rules := UiTheme.button("So geht's")
+	rules.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	rules.pressed.connect(func(): add_child(RulesPanel.new()))
+	box.add_child(rules)
 	var privacy := UiTheme.button("Datenschutz & Werbung")
 	privacy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	privacy.pressed.connect(_show_privacy)

@@ -78,3 +78,16 @@ func test_velocity_points_in_drag_direction() -> void:
 	drag(0, Vector2(200, 100))
 	assert_true(tracker.get_pointer(0).velocity.x > 0.0, "positive x velocity")
 	assert_near(tracker.get_pointer(0).velocity.y, 0.0, 0.001, "no y velocity")
+
+
+func test_a_cancelled_finger_is_ignored_until_lifted() -> void:
+	touch(0, Vector2(100, 100), true)
+	tracker.cancel_all()  # focus loss with the finger still down
+	log.clear()
+	drag(0, Vector2(130, 100))
+	assert_eq(tracker.count(), 0, "stray drags of the cancelled finger are not adopted")
+	assert_eq(log, [] as Array[String], "no events for it")
+	touch(0, Vector2(130, 100), false)  # lifted
+	touch(0, Vector2(200, 200), true)  # a new touch counts again
+	drag(0, Vector2(220, 200))
+	assert_eq(log, ["down0", "move0"] as Array[String], "new touch works normally")

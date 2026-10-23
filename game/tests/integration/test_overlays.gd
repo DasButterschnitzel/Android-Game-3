@@ -19,7 +19,7 @@ func after_each() -> void:
 func test_menu_overlays_fill_the_screen() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	assert_game_font(menu, "main menu")
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
 		menu.add_child(panel)
 		await frames(2)
 		assert_vec_near(panel.size, vp, 1.0, "%s covers the screen" % panel.get_script().get_global_name())
@@ -57,7 +57,7 @@ func test_settings_buttons_are_reachable() -> void:
 
 func test_every_screen_answers_the_back_button() -> void:
 	assert_true(menu.is_in_group("back_handler") and menu.has_method("on_back"), "main menu handles back (leaves the app)")
-	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new()]:
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
 		menu.add_child(panel)
 		await frames(1)
 		var name: String = panel.get_script().get_global_name()
