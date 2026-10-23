@@ -47,6 +47,9 @@ jobs:
       - name: Smoke test exported build (Linux, same packing as Android)
         run: bash tools/smoke_exported.sh
 
+      - name: Smoke test release export (no debug features, no ad backend)
+        run: bash tools/smoke_release.sh
+
       - name: Export debug APK
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -62,7 +65,7 @@ jobs:
           VERSION=$(grep -oP '^version/name="\K[^"]+' game/export_presets.cfg | head -1)
           bash tools/build_release.sh "builds/release/nachhall-${VERSION}-release.aab" --throwaway
           REPORT="builds/release/nachhall-${VERSION}-release.verify.txt"
-          if grep -qE "INVALID|FAILED|no universal.apk" "$REPORT" || ! grep -q "^debuggable: 0$" "$REPORT"; then
+          if grep -qE "INVALID|FAILED|no universal.apk|NOT 16 KB" "$REPORT" || ! grep -q "^debuggable: 0$" "$REPORT"; then
             echo "::error::release bundle verification failed (see $REPORT)"; exit 1
           fi
 

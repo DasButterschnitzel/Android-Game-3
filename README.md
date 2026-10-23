@@ -25,6 +25,7 @@ tools/setup_toolchain.sh                      # Godot 4.7.2, Export-Templates, A
 cd game && godot --headless --path . --import # einmalig: Assets importieren
 godot --headless --path game --script res://tests/run_tests.gd          # Tests
 tools/smoke_exported.sh                       # exportierter Linux-Build spielt eine Nacht mit Bot
+tools/smoke_release.sh                        # dasselbe als RELEASE-Export (ohne Debug-Funktionen, ohne Werbe-Backend)
 tools/build_android.sh game builds/android/nachhall-debug.apk debug   # APK bauen + prüfen
 tools/build_ads_test.sh builds/android/nachhall-adstest-debug.apk     # Werbetest-APK (Gradle, Google-Test-IDs)
 tools/build_release.sh builds/release/nachhall-release.aab              # Release-Bundle (Upload-Schlüssel per Umgebung; --throwaway nur zur Prüfung)

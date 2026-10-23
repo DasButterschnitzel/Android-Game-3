@@ -79,6 +79,19 @@ TMP="$(mktemp -d)"
   if "$BT_DIR/apksigner" verify "$TMP/universal.apk" > "$TMP/apksigner.txt" 2>&1; then echo "apksigner: ok"
   else echo "apksigner: FAILED"; grep -v JAVA_TOOL_OPTIONS "$TMP/apksigner.txt" | head -5; fi
   echo
+  echo "## 16 KB page size (Play: required for Android 15+ targets; 64-bit libraries)"
+  unzip -q -o "$OUT" 'base/lib/arm64-v8a/*' -d "$TMP/so" 2>/dev/null || true
+  for so in "$TMP"/so/base/lib/arm64-v8a/*.so; do
+    [ -f "$so" ] || continue
+    ok=ok
+    aligns=""
+    for a in $(readelf -lW "$so" 2>/dev/null | awk '/^ +LOAD/ {print $NF}'); do
+      aligns="$aligns $a"
+      [ $((a)) -ge 16384 ] || ok="NOT 16 KB aligned"
+    done
+    echo "$(basename "$so"): LOAD align$aligns -> $ok"
+  done
+  echo
   echo "## bundle contents"
   # Godot puts the project files into an install-time asset pack.
   echo "asset files: $(unzip -l "$OUT" | grep -cE ' (base|assetPack[A-Za-z]*)/assets/' || true)"
