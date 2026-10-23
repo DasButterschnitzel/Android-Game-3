@@ -46,6 +46,7 @@ func _process(_dt: float) -> void:
 		"primitives": rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
 		"objects": rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
 		"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		"view_draw_ms": EchoView.draw_usec / 1000.0,
 		"echoes": game.sim.echoes.size(),
 		"state": game.sim.state,
 	})
@@ -62,17 +63,18 @@ func _report() -> void:
 		if not by_echoes.has(k):
 			by_echoes[k] = []
 		by_echoes[k].append(s)
-	print("PERF echoes | frames | draw calls p50/max | primitives p50/max | objects max | script ms p50/max")
+	print("PERF echoes | frames | draw calls p50/max | primitives p50/max | objects max | frame ms p50/max | EchoView._draw ms p50/max")
 	for k in by_echoes.keys():
 		var rows: Array = by_echoes[k]
-		print("PERF %d | %d | %s | %s | %d | %s" % [k, rows.size(), _pm(rows, "draw_calls"), _pm(rows, "primitives"), _mx(rows, "objects"), _pm(rows, "process_ms")])
+		print("PERF %d | %d | %s | %s | %d | %s | %s" % [k, rows.size(), _pm(rows, "draw_calls"), _pm(rows, "primitives"), _mx(rows, "objects"), _pm(rows, "process_ms"), _pm(rows, "view_draw_ms", 2)])
 	get_tree().quit()
 
 
-func _pm(rows: Array, key: String) -> String:
+func _pm(rows: Array, key: String, digits := 1) -> String:
 	var v: Array = rows.map(func(r): return float(r[key]))
 	v.sort()
-	return "%.1f/%.1f" % [v[v.size() / 2], v[v.size() - 1]]
+	var f := "%%.%df/%%.%df" % [digits, digits]
+	return f % [v[v.size() / 2], v[v.size() - 1]]
 
 
 func _mx(rows: Array, key: String) -> int:

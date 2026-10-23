@@ -23,6 +23,11 @@ const SPAWN_ANIM := 0.25  # s for a ghost to rise to full size
 const TRAIL := 12  # live light trail length in frames
 const PREVIEW_TICKS := 60  # echo path shown ahead of each echo (1 s)
 const RING_TICKS := 120  # echo strikes announced ahead (2 s)
+## Draw order; `only_layers` (profiling, tests/capture/draw_breakdown.gd) restricts drawing to some of them.
+const LAYERS := ["skyline", "stains", "routes", "echo_guides", "shockwaves", "lantern", "enemies", "splats",
+	"beams", "echo_lights", "start_ring", "live_lights", "flashes", "fliers", "popups"]
+static var only_layers: PackedStringArray = []
+static var draw_usec := 0  # profiling: script time of the last _draw
 
 var sim: EchoSim
 var effects := 1.0
@@ -47,17 +52,26 @@ var _live_pulse: Array = []  # per live light: strike pulse 1..0
 var _ready_pulse: Array = []  # per live light: "charged again" pulse 1..0
 var _was_full: Array = []
 var _sky: ColorRect
+var _atlas: Texture2D
+var _fills := Batch2D.new()
+var _texts: Array = []  # deferred labels [pos, text, size, color, outline size, outline color]
+# Prebuilt skyline (one triangle array); only window light and the dawn edge change per frame.
+var _sky_pts := PackedVector2Array()
+var _sky_cols := PackedColorArray()
+var _sky_idx := PackedInt32Array()
+var _sky_edge := Vector2i(-1, -1)  # vertex range of the back layer's cut edge
+var _sky_lights: Array = []  # [first vertex, x] per window pane
+var _sky_dawn := -1.0
 var _sky_mat: ShaderMaterial
 var _skyline: Array[PackedVector2Array] = []
 var _windows: Array = []
-var _glow: Texture2D
 var _font: Font
 var _paper := PAPER  # lantern paper colours (cosmetic unlocks)
 var _rib := PAPER_DARK
 
 
 func _ready() -> void:
-	_glow = ArtKit.glow_texture()
+	_atlas = ArtKit.atlas()
 	_font = UiTheme.FONT_BOLD
 	_sky = ColorRect.new()
 	_sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -88,6 +102,7 @@ func setup(new_sim: EchoSim, seed_value: int) -> void:
 	_windows.clear()
 	for i in _skyline.size():
 		_windows.append(ArtKit.windows(_skyline[i], seed_value + 17 * i, 0.14))
+	_build_skyline_mesh()
 
 
 ## Hand-cut look: deterministic +-1.5 px wobble on every skyline corner.
@@ -125,31 +140,16 @@ func light_color(light_id: int) -> Color:
 ## Ghost type symbol shared by field anchors and the HUD timeline:
 ## normal = triangle, twins = two triangles, armored = square; ink outlined.
 static func draw_type_symbol(ci: CanvasItem, pos: Vector2, type: int, size: float, angle := 0.0) -> void:
+	# Atlas sprites with the ink outline baked in (one batch with other dots).
 	var c := enemy_color(type)
-	var shapes: Array[PackedVector2Array] = []
 	match type:
 		EchoSim.Type.TWIN:
 			for dx in [-0.42, 0.42]:
-				shapes.append(_triangle(pos, size * 0.62, angle, Vector2(dx * size, 0).rotated(angle)))
+				ArtKit.sprite(ci, "tri", pos + Vector2(dx * size, 0).rotated(angle), size * 0.62 * 0.55, c, angle)
 		EchoSim.Type.ARMOR:
-			var h := size * 0.45
-			var sq := PackedVector2Array([Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)])
-			for i in sq.size():
-				sq[i] = pos + sq[i].rotated(angle)
-			shapes.append(sq)
+			ArtKit.sprite(ci, "square", pos, size * 0.45, c, angle)
 		_:
-			shapes.append(_triangle(pos, size, angle, Vector2.ZERO))
-	for s in shapes:
-		ci.draw_colored_polygon(s, c)
-		ci.draw_polyline(s + PackedVector2Array([s[0]]), INK, 2.0, true)
-
-
-static func _triangle(pos: Vector2, size: float, angle: float, offset: Vector2) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for k in 3:
-		var a := angle + TAU * k / 3.0
-		pts.append(pos + offset + Vector2.from_angle(a) * size * 0.55)
-	return pts
+			ArtKit.sprite(ci, "tri", pos, size * 0.55, c, angle)
 
 
 # --- effect triggers (called by EchoGame) ------------------------------------------
@@ -317,49 +317,123 @@ func night_progress() -> float:
 
 
 func _draw() -> void:
-	_draw_skyline()
-	if sim == null:
-		return
-	_draw_stains()
-	_draw_routes()
-	_draw_echo_guides()
-	_draw_shockwaves()
-	_draw_lantern()
-	_draw_enemies()
-	_draw_splats()
-	_draw_beams()
-	_draw_echo_lights()
-	_draw_start_ring()
-	_draw_live_lights()
-	_draw_flashes()
-	_draw_fliers()
-	_draw_popups()
+	var t0 := Time.get_ticks_usec()
+	_texts.clear()
+	if only_layers.is_empty():
+		_draw_skyline()
+		if sim != null:
+			_draw_stains()
+			_draw_routes()
+			_draw_echo_guides()
+			_draw_shockwaves()
+			_draw_lantern()
+			_draw_enemies()
+			_draw_splats()
+			_draw_beams()
+			_draw_echo_lights()
+			_draw_start_ring()
+			_draw_live_lights()
+			_draw_flashes()
+			_draw_fliers()
+			_draw_popups()
+	else:
+		for layer in LAYERS:  # profiling: only the requested layers
+			if only_layers.has(layer) and (sim != null or layer == "skyline"):
+				call("_draw_" + layer)
+	_draw_texts()
+	draw_usec = Time.get_ticks_usec() - t0
 
 
-## Cut-paper stage: hard offset shadow, flat layer, 2 px cut edge on the top
-## contour (the back edge warms up at dawn), lit windows with a window cross.
+# --- batching helpers (see Batch2D: fills = one triangle array, strokes = lines,
+# dots and glows = rects of one atlas texture, text last) ---------------------------
+
+func _glow_rect(r: Rect2, c: Color) -> void:
+	draw_texture_rect_region(_atlas, r, ArtKit.ATLAS_GLOW, c)
+
+
+func _dot(p: Vector2, r: float, c: Color) -> void:
+	var dr: Array = ArtKit.disc_rect(p, r)
+	draw_texture_rect_region(_atlas, dr[0], dr[1], c)
+
+
+## Text is collected and drawn after everything else: one batch per size.
+func _text(p: Vector2, text: String, fs: int, col: Color) -> void:
+	var sz := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	_texts.append([p + Vector2(-sz.x * 0.5, fs * 0.36), text, fs, col, 0, Color()])
+
+
+func _draw_texts() -> void:
+	for x in _texts:
+		if int(x[4]) > 0:
+			draw_string_outline(_font, x[0], x[1], HORIZONTAL_ALIGNMENT_LEFT, -1, x[2], x[4], x[5])
+	for x in _texts:
+		draw_string(_font, x[0], x[1], HORIZONTAL_ALIGNMENT_LEFT, -1, x[2], x[3])
+
+
+## Cut-paper stage, prebuilt as one triangle array per round (_build_skyline_mesh):
+## each frame only the window light flickers and the back edge warms at dawn.
 func _draw_skyline() -> void:
+	if _sky_idx.is_empty():
+		return
+	var dawn := night_progress()
+	if absf(dawn - _sky_dawn) > 0.004 and _sky_edge.x >= 0:
+		_sky_dawn = dawn
+		var ec := Color("#2b2756").lerp(Color("#ff9d6b"), dawn * 0.6)
+		for v in range(_sky_edge.x, _sky_edge.y):
+			_sky_cols[v] = ec
+	for w in _sky_lights:
+		var flick := 0.75 + 0.25 * sin(t * 1.3 + float(w[1]) * 0.07)
+		var wc := Color(1.0, 0.8, 0.45, 0.28 * flick)
+		var v0: int = w[0]
+		for v in range(v0, v0 + 6):
+			_sky_cols[v] = wc
+	RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), _sky_idx, _sky_pts, _sky_cols)
+
+
+## Per layer: hard offset shadow, flat paper, 2 px cut edge on the top contour,
+## lit windows with a window cross. Built once per round.
+func _build_skyline_mesh() -> void:
+	var b := Batch2D.new()
 	var tones := [Color("#1a1838"), Color("#131130"), Color("#0b0a22")]
 	var edges := [Color("#2b2756"), Color("#221f47"), Color("#17143a")]
-	var dawn := night_progress()
+	_sky_lights.clear()
+	_sky_edge = Vector2i(-1, -1)
 	for i in _skyline.size():
 		var poly := _skyline[i]
 		if poly.size() < 3:
 			continue
-		draw_set_transform(Vector2(5, 7))
-		draw_colored_polygon(poly, SHADOW)
-		draw_set_transform(Vector2.ZERO)
-		draw_colored_polygon(poly, tones[mini(i, tones.size() - 1)])
-		var edge: Color = edges[mini(i, edges.size() - 1)]
+		var tri := Geometry2D.triangulate_polygon(poly)
+		if tri.is_empty():
+			continue
+		var tone: Color = tones[mini(i, tones.size() - 1)]
+		_add_poly(b, Transform2D(0.0, Vector2(5, 7)) * poly, tri, SHADOW)
+		_add_poly(b, poly, tri, tone)
+		var e0 := b.points.size()
+		var top := poly.slice(1, poly.size() - 1)
+		for k in top.size() - 1:
+			b.band(top[k], top[k + 1], 2.0, edges[mini(i, edges.size() - 1)], 1.0)
 		if i == 0:
-			edge = edge.lerp(Color("#ff9d6b"), dawn * 0.6)
-		draw_polyline(poly.slice(1, poly.size() - 1), edge, 2.0, true)
-		for w in _windows[i]:
-			var flick := 0.75 + 0.25 * sin(t * 1.3 + w.x * 0.07)
-			var wc := Color(1.0, 0.8, 0.45, 0.28 * flick)
-			draw_rect(Rect2(w - Vector2(5, 7), Vector2(10, 14)), wc)
-			draw_line(w + Vector2(0, -7), w + Vector2(0, 7), tones[mini(i, tones.size() - 1)], 2.0)
-			draw_line(w + Vector2(-5, 0), w + Vector2(5, 0), tones[mini(i, tones.size() - 1)], 2.0)
+			_sky_edge = Vector2i(e0, b.points.size())
+		for w: Vector2 in _windows[i]:
+			_sky_lights.append([b.points.size(), w.x])
+			b.quad(w + Vector2(-5, -7), w + Vector2(5, -7), w + Vector2(5, 7), w + Vector2(-5, 7), Color(1.0, 0.8, 0.45, 0.28))
+			b.band(w + Vector2(0, -7), w + Vector2(0, 7), 2.0, tone)
+			b.band(w + Vector2(-5, 0), w + Vector2(5, 0), 2.0, tone)
+	_sky_pts = b.points
+	_sky_cols = b.colors
+	_sky_idx = b.indices
+	_sky_dawn = -1.0
+
+
+static func _add_poly(b: Batch2D, pts: PackedVector2Array, tri: PackedInt32Array, color: Color) -> void:
+	var base := b.points.size()
+	b.points.append_array(pts)
+	var c := PackedColorArray()
+	c.resize(pts.size())
+	c.fill(color)
+	b.colors.append_array(c)
+	for k in tri:
+		b.indices.append(base + k)
 
 
 # --- field ------------------------------------------------------------------------
@@ -369,6 +443,7 @@ func _draw_skyline() -> void:
 ## Edge anchors carry the ghost's type symbol, pointing at the lantern.
 func _draw_routes() -> void:
 	var running := sim.state == "running"
+	var anchors: Array = []  # edge symbols go out after all lines (one sprite batch)
 	for spec in sim.wave:
 		var until := int(spec.tick) - sim.tick if running else 0
 		if running and (until < 0 or until > 120):
@@ -378,17 +453,16 @@ func _draw_routes() -> void:
 		var from: Vector2 = spec.from
 		var dir: Vector2 = (sim.core - from).normalized()
 		var len: float = from.distance_to(sim.core) - float(sim.cfg.core_radius) - 6.0
-		var s := 0.0
-		while s < len:
-			draw_line(from + dir * s, from + dir * minf(s + 7.0, len), Color(c, a), 2.0)
-			s += 14.0
+		draw_multiline(Batch2D.dashes(from, from + dir * len, 7.0, 7.0), Color(c, a), 2.0)
 		if spec.inside:
 			# Ink drop warning where a ghost will rise.
 			var k := 1.0 if not running else clampf(1.0 - float(until) / 60.0, 0.0, 1.0)
-			draw_circle(from, 10.0 + 12.0 * k, Color(INK, 0.55))
-			draw_arc(from, 12.0 + 12.0 * k, 0, TAU, 28, Color(c, 0.55), 2.0, true)
+			Batch2D.prim_disc(self, from, 10.0 + 12.0 * k, Color(INK, 0.55), 16)
+			draw_multiline(Batch2D.ring(from, 12.0 + 12.0 * k, 28, 0.5), Color(c, 0.55), 2.0, true)
 		else:
-			draw_type_symbol(self, _edge_anchor(from), spec.type, 16.0, dir.angle())
+			anchors.append([_edge_anchor(from), spec.type, dir.angle()])
+	for an in anchors:
+		draw_type_symbol(self, an[0], an[1], 16.0, an[2])
 
 
 func _edge_anchor(from: Vector2) -> Vector2:
@@ -401,9 +475,9 @@ func _draw_stains() -> void:
 		var a := clampf(1.0 - float(s.age) / 4.0, 0.0, 1.0) * 0.12
 		if a <= 0.0:
 			continue
-		draw_circle(s.pos, float(s.r), Color(INK, a))
+		_dot(s.pos, float(s.r), Color(INK, a))
 		for d in s.drops:
-			draw_circle(s.pos + (d[0] as Vector2), float(d[1]), Color(INK, a))
+			_dot(s.pos + (d[0] as Vector2), float(d[1]), Color(INK, a))
 
 
 func _draw_lantern() -> void:
@@ -412,7 +486,7 @@ func _draw_lantern() -> void:
 	# String from the top of the field, with a knot.
 	var top := Vector2(pivot.x, sim.arena.position.y)
 	draw_line(top, pivot, Color(0.55, 0.5, 0.6, 0.7), 2.0)
-	draw_circle(top, 4.0, Color("#8a7f99"))
+	Batch2D.prim_disc(self, top, 4.0, Color("#8a7f99"), 8)
 	var lives := sim.core_hp
 	var max_lives := int(sim.cfg.core_lives)
 	var warm := 0.35 + 0.65 * float(lives) / max_lives
@@ -421,34 +495,37 @@ func _draw_lantern() -> void:
 	draw_set_transform(pivot, _sway, Vector2.ONE)
 	var c := Vector2(0, r * 1.3)
 	var halo := r * 6.0 * warm * flick
-	draw_texture_rect(_glow, Rect2(c - Vector2(halo, halo), Vector2(halo, halo) * 2.0), false, Color(1.0, 0.65, 0.3, 0.42 * warm))
+	_glow_rect(Rect2(c - Vector2(halo, halo), Vector2(halo, halo) * 2.0), Color(1.0, 0.65, 0.3, 0.42 * warm))
 	var rx := r * 1.02
 	var ry := r * 1.18
 	var body := _ellipse(c, rx, ry, 36)
 	var paper := _paper.lerp(Color("#6b4a5c"), 1.0 - warm)
 	if _lantern_hit > 0.0:
 		paper = paper.lerp(UiTheme.DANGER, _lantern_hit * 0.6)
-	draw_colored_polygon(body, paper)
+	_fills.fan(c, body, paper)
 	# Right half in shade: paper is lit from the left.
 	var shade := PackedVector2Array()
 	for i in 19:
 		var a := lerpf(-PI * 0.5, PI * 0.5, i / 18.0)
 		shade.append(c + Vector2(cos(a) * rx, sin(a) * ry))
-	draw_colored_polygon(shade, paper.darkened(0.12))
+	_fills.fan(c, shade, paper.darkened(0.12))
+	_fills.flush(self)
 	# Inner glow around the flames.
-	draw_texture_rect(_glow, Rect2(c + Vector2(-rx * 0.62, -ry * 0.55), Vector2(rx * 1.24, ry * 1.5)), false, Color("#fff3cf", 0.55 * warm))
+	_glow_rect(Rect2(c + Vector2(-rx * 0.62, -ry * 0.55), Vector2(rx * 1.24, ry * 1.5)), Color("#fff3cf", 0.55 * warm))
+	var ribs := PackedVector2Array()
 	for k in [-0.62, -0.25, 0.25, 0.62]:
 		var rib := PackedVector2Array()
-		for i in 13:
-			var a := lerpf(-PI * 0.5, PI * 0.5, i / 12.0)
+		for i in 9:
+			var a := lerpf(-PI * 0.5, PI * 0.5, i / 8.0)
 			rib.append(c + Vector2(k * r * cos(a), sin(a) * r * 1.16))
-		draw_polyline(rib, Color(_rib, 0.8), 2.5, true)
-	draw_polyline(body + PackedVector2Array([body[0]]), Color(_rib, 0.9), 2.5, true)
+		ribs.append_array(Batch2D.path(rib, false, 0.5))
+	draw_multiline(ribs, Color(_rib, 0.8), 2.5, true)
+	draw_multiline(Batch2D.path(_ellipse(c, rx, ry, 24), true, 0.5), Color(_rib, 0.9), 2.5, true)
 	var cap := Color("#3a2b3f")
 	var cap_hi := Color("#6b5570")
-	draw_rect(Rect2(c + Vector2(-r * 0.55, -r * 1.3), Vector2(r * 1.1, r * 0.2)), cap)
+	_prim_rect(Rect2(c + Vector2(-r * 0.55, -r * 1.3), Vector2(r * 1.1, r * 0.2)), cap)
 	draw_line(c + Vector2(-r * 0.55, -r * 1.3 + 1), c + Vector2(r * 0.55, -r * 1.3 + 1), cap_hi, 2.0)
-	draw_rect(Rect2(c + Vector2(-r * 0.45, r * 1.12), Vector2(r * 0.9, r * 0.18)), cap)
+	_prim_rect(Rect2(c + Vector2(-r * 0.45, r * 1.12), Vector2(r * 0.9, r * 0.18)), cap)
 	draw_line(c + Vector2(-r * 0.45, r * 1.12 + 1), c + Vector2(r * 0.45, r * 1.12 + 1), cap_hi, 2.0)
 	var tassel_sway := sin(t * 2.0) * 3.0 - _sway * 40.0
 	draw_line(c + Vector2(0, r * 1.3), c + Vector2(tassel_sway, r * 1.75), Color("#c2413c"), 3.0)
@@ -460,95 +537,119 @@ func _draw_lantern() -> void:
 	for i in max_lives:
 		var fp := c + Vector2((i - (max_lives - 1) * 0.5) * r * 0.55, r * 0.42)
 		var out: float = _flame_out[i] if i < _flame_out.size() else -1.0
-		draw_rect(Rect2(fp + Vector2(-2, -2), Vector2(4, 8)), Color("#3a2b3f"))  # wick
+		_prim_rect(Rect2(fp + Vector2(-2, -2), Vector2(4, 8)), Color("#3a2b3f"))  # wick
 		if out < 0.0:
 			var hw := r * 0.18
 			var h := r * 0.64 * (1.0 + 0.1 * sin(t * 11.0 + i * 1.7))
 			var outer := Color("#ff9a3c")
 			if i >= lives - at_risk:
 				outer = outer.lerp(Color("#ff5d5d"), 0.5 + 0.5 * sin(t * TAU * 3.0))
-				draw_circle(fp + Vector2(0, -h - 10), 4.0, INK)
-			draw_colored_polygon(PackedVector2Array([fp + Vector2(-hw, -2), fp + Vector2(0, -h), fp + Vector2(hw, -2), fp + Vector2(0, 4)]), outer)
-			draw_colored_polygon(PackedVector2Array([fp + Vector2(-hw * 0.5, -2), fp + Vector2(0, -h * 0.6), fp + Vector2(hw * 0.5, -2), fp + Vector2(0, 2)]), Color("#fff3c4"))
+				Batch2D.prim_disc(self, fp + Vector2(0, -h - 10), 4.0, INK, 8)
+			_prim_quad(fp + Vector2(-hw, -2), fp + Vector2(0, -h), fp + Vector2(hw, -2), fp + Vector2(0, 4), outer)
+			_prim_quad(fp + Vector2(-hw * 0.5, -2), fp + Vector2(0, -h * 0.6), fp + Vector2(hw * 0.5, -2), fp + Vector2(0, 2), Color("#fff3c4"))
 		elif out < 1.5:
 			var a := 1.0 - out / 1.5
-			draw_circle(fp + Vector2(sin(out * 6.0) * 4.0, -8.0 - out * 30.0), 4.0 + out * 4.0, Color(0.6, 0.55, 0.65, 0.45 * a))
+			Batch2D.prim_disc(self, fp + Vector2(sin(out * 6.0) * 4.0, -8.0 - out * 30.0), 4.0 + out * 4.0, Color(0.6, 0.55, 0.65, 0.45 * a), 12)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## Four-point primitives stay inside the current line batch (draw_rect would not).
+func _prim_quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, col: Color) -> void:
+	draw_primitive(PackedVector2Array([a, b, c, d]), PackedColorArray([col, col, col, col]), PackedVector2Array())
+
+
+func _prim_rect(r: Rect2, col: Color) -> void:
+	_prim_quad(r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), col)
+
+
 func _ellipse(c: Vector2, rx: float, ry: float, n: int) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for i in n:
-		var a := TAU * i / n
-		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
-	return pts
+	return Transform2D(0.0, Vector2(rx, ry), 0.0, c) * Batch2D.unit_circle(n)
 
 
+## Ghosts in four batches: trails and glows (sprites), shadows, ink outlines and
+## bodies (one triangle array), rims and twin threads (lines), plates and eyes (sprites).
 func _draw_enemies() -> void:
 	if sim.state != "running":
 		return
-	var window := sim.twin_window_ticks()
+	var shown: Array = []  # [enemy, drawn position, grow]
 	for e in sim.enemies:
 		if not e.alive:
 			continue
 		var spec: Dictionary = e.spec
-		var c: Color = enemy_color(spec.type)
-		var p: Vector2 = e.pos
 		var grow := clampf(float(sim.tick - int(spec.tick)) * EchoSim.DT / SPAWN_ANIM, 0.0, 1.0)
 		grow = 1.0 - pow(1.0 - grow, 3.0)
-		p += Vector2(0, sin(t * 7.0 + float(spec.id)) * 1.5)  # walking bob
+		var p: Vector2 = (e.pos as Vector2) + Vector2(0, sin(t * 7.0 + float(spec.id)) * 1.5)  # walking bob
+		shown.append([e, p, grow])
+	if shown.is_empty():
+		return
+	for s in shown:
+		var spec: Dictionary = s[0].spec
+		var grow: float = s[2]
 		# Fading ink trail behind the ghost.
 		for k in range(4, 0, -1):
 			var back: Variant = sim.enemy_pos_at(spec, maxi(int(spec.tick), sim.tick - k * 5))
 			if back != null:
-				draw_circle(back, (17.0 - k * 2.5) * grow, Color(INK, 0.28 - k * 0.05))
-		var fl: float = _enemy_flash.get(spec.id, 0.0)
+				_dot(back, (17.0 - k * 2.5) * grow, Color(INK, 0.28 - k * 0.05))
 		var glow := 46.0 * grow
-		draw_texture_rect(_glow, Rect2(p - Vector2(glow, glow), Vector2(glow, glow) * 2.0), false, Color(c, 0.35))
-		var body := _ghost_shape(p, (22.0 if spec.type != EchoSim.Type.ARMOR else 25.0) * grow, float(spec.id))
-		var closed := body + PackedVector2Array([body[0]])
+		_glow_rect(Rect2((s[1] as Vector2) - Vector2(glow, glow), Vector2(glow, glow) * 2.0), Color(enemy_color(spec.type), 0.35))
+	var bodies: Array[PackedVector2Array] = []
+	for s in shown:
+		var spec: Dictionary = s[0].spec
+		var p: Vector2 = s[1]
+		var body := _ghost_shape(p, (22.0 if spec.type != EchoSim.Type.ARMOR else 25.0) * float(s[2]), float(spec.id))
+		bodies.append(body)
 		# Paper-theatre depth: hard offset shadow (only visible once the sky brightens).
-		draw_set_transform(Vector2(4, 6))
-		draw_colored_polygon(body, Color(INK, 0.25))
-		draw_set_transform(Vector2.ZERO)
-		draw_colored_polygon(body, INK.lerp(Color.WHITE, fl * 2.0))
-		# Ink outline under the coloured rim keeps the rim readable on any sky.
-		draw_polyline(closed, INK, 7.0, true)
-		draw_polyline(closed, c, 3.5, true)
-		if grow < 0.6:
+		_fills.fan(p + Vector2(4, 6), Transform2D(0.0, Vector2(4, 6)) * body, Color(INK, 0.25))
+		# Ink outline: the blob grown by 3.5 px keeps the coloured rim readable on any sky.
+		var ink := PackedVector2Array()
+		for q in body:
+			ink.append(q + (q - p).normalized() * 3.5)
+		_fills.fan(p, ink, INK)
+		var fl: float = _enemy_flash.get(spec.id, 0.0)
+		_fills.fan(p, body, INK.lerp(Color.WHITE, fl * 2.0))
+	_fills.flush(self)
+	var window := sim.twin_window_ticks()
+	for i in shown.size():
+		var e: Dictionary = shown[i][0]
+		var spec: Dictionary = e.spec
+		var p: Vector2 = shown[i][1]
+		var c := enemy_color(spec.type)
+		draw_multiline(Batch2D.path(bodies[i], true), c, 3.5, true)
+		if float(shown[i][2]) < 0.6:
 			continue
-		var look: Vector2 = (sim.core - p).normalized()
-		var side := Vector2(-look.y, look.x)
-		if spec.type == EchoSim.Type.TWIN:
-			# One big eye: the pair shares one face.
-			var ep: Vector2 = p + look * 4.0 + Vector2(0, -3)
-			draw_circle(ep, 6.5, Color.WHITE)
-			draw_circle(ep + look * 2.4, 3.0, INK)
-		else:
-			for s in [-1.0, 1.0]:
-				var ep: Vector2 = p + look * 6.0 + side * s * 7.0 + Vector2(0, -3)
-				draw_circle(ep, 4.2, Color.WHITE)
-				draw_circle(ep + look * 1.6, 2.0, INK)
 		match spec.type:
-			EchoSim.Type.ARMOR:
-				var cracked: bool = e.hitters.size() >= 1
-				for i in 6:
-					if cracked and i % 2 == 0:
-						continue
-					var a0 := TAU * i / 6.0 + t * 0.6
-					draw_arc(p, 32.0, a0, a0 + TAU / 6.0 * 0.8, 6, INK, 7.0, true)
-					draw_arc(p, 32.0, a0, a0 + TAU / 6.0 * 0.8, 6, Color(c, 0.95), 4.0, true)
 			EchoSim.Type.TWIN:
 				var partner: Variant = sim._enemy_by_id(spec.twin)
 				if partner != null and partner.alive and spec.id < spec.twin:
-					_dashed(p, partner.pos, Color(INK, 0.8), 5.0)
-					_dashed(p, partner.pos, Color(c, 0.6), 3.0)
+					var thread := Batch2D.dashes(p, partner.pos, 8.0, 8.0, fmod(t * 30.0, 16.0))
+					draw_multiline(thread, Color(INK, 0.8), 5.0)
+					draw_multiline(thread, Color(c, 0.6), 3.0)
 				# Countdown ring: the partner was just hit, strike me now!
 				if partner != null and partner.alive and int(partner.hit_tick) >= 0:
 					var left := window - (sim.tick - int(partner.hit_tick))
 					if left > 0:
 						var f := float(left) / window
-						draw_arc(p, 32.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Color.WHITE, 4.0, true)
+						draw_multiline(Batch2D.arc(p, 32.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32), Color.WHITE, 4.0, true)
+	for s in shown:
+		if float(s[2]) < 0.6:
+			continue
+		var spec: Dictionary = s[0].spec
+		var p: Vector2 = s[1]
+		if spec.type == EchoSim.Type.ARMOR:
+			# Plate ring (half of it after the first hit), ink-backed sprite.
+			ArtKit.sprite(self, "plates3" if s[0].hitters.size() >= 1 else "plates", p, 32.0, Color(enemy_color(spec.type), 0.95), t * 0.6)
+		var look: Vector2 = (sim.core - p).normalized()
+		var side := Vector2(-look.y, look.x)
+		if spec.type == EchoSim.Type.TWIN:
+			# One big eye: the pair shares one face.
+			var ep: Vector2 = p + look * 4.0 + Vector2(0, -3)
+			_dot(ep, 6.5, Color.WHITE)
+			_dot(ep + look * 2.4, 3.0, INK)
+		else:
+			for sg in [-1.0, 1.0]:
+				var ep: Vector2 = p + look * 6.0 + side * sg * 7.0 + Vector2(0, -3)
+				_dot(ep, 4.2, Color.WHITE)
+				_dot(ep + look * 1.6, 2.0, INK)
 
 
 ## Wobbly ink blob with a ragged lower hem.
@@ -564,23 +665,20 @@ func _ghost_shape(p: Vector2, r: float, phase: float) -> PackedVector2Array:
 	return pts
 
 
-func _dashed(a: Vector2, b: Vector2, c: Color, width: float) -> void:
-	var len := a.distance_to(b)
-	var dir := (b - a) / maxf(len, 0.001)
-	var s := fmod(t * 30.0, 16.0)
-	while s < len:
-		draw_line(a + dir * s, a + dir * minf(s + 8.0, len), c, width)
-		s += 16.0
-
-
 ## A destroyed ghost bursts: its ink body swells and thins out into a ring.
 func _draw_splats() -> void:
+	if splats.is_empty():
+		return
+	for s in splats:
+		var k: float = float(s.age) / 0.5
+		var r: float = float(s.r) * (1.0 + 0.9 * k)
+		_fills.disc(s.pos, r * (1.0 - k * 0.6), Color(INK, 0.55 * (1.0 - k)), 20)
+	_fills.flush(self)
 	for s in splats:
 		var k: float = float(s.age) / 0.5
 		var r: float = float(s.r) * (1.0 + 0.9 * k)
 		var a := 1.0 - k
-		draw_circle(s.pos, r * (1.0 - k * 0.6), Color(INK, 0.55 * a))
-		draw_arc(s.pos, r, 0, TAU, 28, Color(s.color, 0.8 * a), 3.0 * a + 1.0, true)
+		draw_multiline(Batch2D.ring(s.pos, r, 28, 0.5), Color(s.color, 0.8 * a), 3.0 * a + 1.0, true)
 
 
 func _draw_beams() -> void:
@@ -595,7 +693,7 @@ func _draw_shockwaves() -> void:
 	for w in waves_fx:
 		var k: float = float(w.age) / 0.9
 		var r: float = float(w.size) * (0.2 + 0.8 * (1.0 - pow(1.0 - k, 2.0)))
-		draw_arc(w.pos, r, 0, TAU, 64, Color(w.color, 0.45 * (1.0 - k)), 4.0 * (1.0 - k) + 1.0, true)
+		draw_multiline(Batch2D.ring(w.pos, r, 48, 0.5), Color(w.color, 0.45 * (1.0 - k)), 4.0 * (1.0 - k) + 1.0, true)
 
 
 # --- lights -----------------------------------------------------------------------
@@ -612,29 +710,33 @@ func _echo_alpha(k: int) -> float:
 func _draw_echo_guides() -> void:
 	var running := sim.state == "running"
 	var at := sim.tick if running else 0
+	if running:
+		for k in sim.echoes.size():
+			var ec: Dictionary = sim.echoes[k]
+			var c := echo_color(int(ec.id))
+			var path: PackedVector2Array = ec.path
+			var j := at + 6
+			while j <= mini(at + PREVIEW_TICKS, path.size() - 1):
+				var f := float(j - at) / PREVIEW_TICKS
+				_dot(path[j], lerpf(3.0, 1.5, f), Color(c, 0.55 * (1.0 - f)))
+				j += 6
 	for k in sim.echoes.size():
 		var ec: Dictionary = sim.echoes[k]
 		var c := echo_color(int(ec.id))
 		var path: PackedVector2Array = ec.path
 		if path.is_empty():
 			continue
-		if running:
-			var j := at + 6
-			while j <= mini(at + PREVIEW_TICKS, path.size() - 1):
-				var f := float(j - at) / PREVIEW_TICKS
-				draw_circle(path[j], lerpf(3.0, 1.5, f), Color(c, 0.55 * (1.0 - f)))
-				j += 6
-		elif k == sim.echoes.size() - 1 and path.size() >= 2:
-			draw_polyline(_thin(path, 3), Color(c, 0.25), 2.0, true)
+		if not running and k == sim.echoes.size() - 1 and path.size() >= 2:
+			draw_multiline(Batch2D.path(_thin(path, 3), false, 0.5), Color(c, 0.25), 2.0, true)
 		for st in (ec.strikes as PackedInt32Array):
 			if running and (st < at or st > at + RING_TICKS):
 				continue
 			var sp: Vector2 = path[mini(st, path.size() - 1)]
 			var soon := clampf(1.0 - float(st - at) / 45.0, 0.0, 1.0) if running else 0.0
 			var a := (0.5 + 0.5 * soon) if running else 0.5
-			draw_arc(sp, 16.0 + 4.0 * soon, 0, TAU, 24, Color(INK, 0.5 * a), 6.0, true)
-			draw_arc(sp, 16.0 + 4.0 * soon, 0, TAU, 24, Color(c, a), 3.0, true)
-			_centered_text(sp, str(k + 1), 14, Color(c, a))
+			# Ink halo under a coloured ring, baked into one atlas sprite.
+			ArtKit.sprite(self, "guide", sp, 16.0 + 4.0 * soon, Color(c, a))
+			_text(sp, str(k + 1), 14, Color(c, a))
 
 
 func _thin(path: PackedVector2Array, step: int) -> PackedVector2Array:
@@ -653,20 +755,14 @@ func _draw_echo_lights() -> void:
 	for k in sim.echoes.size():
 		var ec: Dictionary = sim.echoes[k]
 		var path: PackedVector2Array = ec.path
-		var i := mini(sim.tick, path.size() - 1)
-		var p: Vector2 = path[i]
+		var p: Vector2 = path[mini(sim.tick, path.size() - 1)]
 		var c := echo_color(int(ec.id))
 		var a := _echo_alpha(k)
 		var r := lerpf(11.0, 13.0, a)
-		draw_texture_rect(_glow, Rect2(p - Vector2(34, 34), Vector2(68, 68)), false, Color(c, lerpf(0.2, 0.55, a)))
-		draw_circle(p, r + 2.0, INK)
-		draw_circle(p, r, Color(c, maxf(0.85, a)))
-		_centered_text(p, str(k + 1), 20, INK)
-
-
-func _centered_text(p: Vector2, text: String, fs: int, col: Color) -> void:
-	var sz := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-	draw_string(_font, p + Vector2(-sz.x * 0.5, fs * 0.36), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		_glow_rect(Rect2(p - Vector2(34, 34), Vector2(68, 68)), Color(c, lerpf(0.2, 0.55, a)))
+		_dot(p, r + 2.0, INK)
+		_dot(p, r, Color(c, maxf(0.85, a)))
+		_text(p, str(k + 1), 20, INK)
 
 
 func _draw_start_ring() -> void:
@@ -676,17 +772,14 @@ func _draw_start_ring() -> void:
 	var pulse := 0.5 + 0.5 * sin(t * 4.0)
 	var ok := sim.state == "ready" or sim.can_run_again()
 	var c := Color(LIVE_COL, 0.35 + 0.35 * pulse) if ok else Color(1, 1, 1, 0.15)
-	var segs := 16
-	for i in segs:
-		var a0 := TAU * i / segs + t * 0.4
-		draw_arc(sim.start_pos, ring, a0, a0 + TAU / segs * 0.55, 6, c, 3.0, true)
+	ArtKit.sprite(self, "dashring", sim.start_pos, ring, c, t * 0.4)  # 16 turning dashes
 	if ok:
 		# How far the light is pulled towards the edge: the ring tightens.
 		var pull := clampf(ready_pos.distance_to(sim.start_pos) / ring, 0.0, 1.0)
 		if pull > 0.05:
-			draw_arc(sim.start_pos, ring, 0, TAU, 48, Color(LIVE_COL, 0.25 + 0.5 * pull), 2.0 + 3.0 * pull, true)
-		draw_texture_rect(_glow, Rect2(ready_pos - Vector2(56, 56), Vector2(112, 112)), false, Color(LIVE_GLOW, 0.75))
-		draw_circle(ready_pos, 12.0, LIVE_COL)
+			draw_multiline(Batch2D.ring(sim.start_pos, ring, 48, 0.5), Color(LIVE_COL, 0.25 + 0.5 * pull), 2.0 + 3.0 * pull, true)
+		_glow_rect(Rect2(ready_pos - Vector2(56, 56), Vector2(112, 112)), Color(LIVE_GLOW, 0.75))
+		_dot(ready_pos, 12.0, LIVE_COL)
 
 
 ## The player's own light is always the clearest thing on screen: full core,
@@ -697,37 +790,47 @@ func _draw_live_lights() -> void:
 	for k in sim.live.size():
 		var l: Dictionary = sim.live[k]
 		var p: Vector2 = l.pos
-		var charge := sim.charge_of(l)
-		var full := charge >= 1.0
-		var pulse: float = _live_pulse[k] if k < _live_pulse.size() else 0.0
-		var ready_pulse: float = _ready_pulse[k] if k < _ready_pulse.size() else 0.0
 		if k < _live_trail.size():
 			var tr: PackedVector2Array = _live_trail[k]
 			if tr.size() >= 2:
 				var cols := PackedColorArray()
-				for j in tr.size():
-					cols.append(Color(LIVE_GLOW, 0.5 * float(j) / (tr.size() - 1)))
-				draw_polyline_colors(tr, cols, 8.0, true)
+				for j in tr.size() - 1:
+					cols.append(Color(LIVE_GLOW, 0.5 * float(j + 1) / (tr.size() - 1)))
+				draw_multiline_colors(Batch2D.path(tr, false, 0.5), cols, 8.0, true)
 		if k < targets.size() and targets[k].distance_to(p) > 24.0:
 			draw_line(p, targets[k], Color(LIVE_COL, 0.18), 2.0)
-			draw_circle(targets[k], 4.0, Color(LIVE_COL, 0.3))
+			Batch2D.prim_disc(self, targets[k], 4.0, Color(LIVE_COL, 0.3), 8)
+	for k in sim.live.size():
+		var l: Dictionary = sim.live[k]
+		var p: Vector2 = l.pos
+		var full := sim.charge_of(l) >= 1.0
+		var pulse: float = _live_pulse[k] if k < _live_pulse.size() else 0.0
 		var glow := (72.0 if full else 48.0) + 40.0 * pulse
-		draw_texture_rect(_glow, Rect2(p - Vector2(glow, glow), Vector2(glow, glow) * 2.0), false, Color(LIVE_GLOW, 0.8 if full else 0.45))
-		draw_circle(p, 12.0 + 6.0 * pulse, LIVE_COL)
-		if not full:
-			draw_arc(p, 22.0, 0, TAU, 32, Color(LIVE_COL, 0.2), 4.0, true)
-			draw_arc(p, 22.0, -PI * 0.5, -PI * 0.5 + TAU * charge, 32, Color(LIVE_COL, 0.9), 4.0, true)
+		_glow_rect(Rect2(p - Vector2(glow, glow), Vector2(glow, glow) * 2.0), Color(LIVE_GLOW, 0.8 if full else 0.45))
+		_dot(p, 12.0 + 6.0 * pulse, LIVE_COL)
+	for k in sim.live.size():
+		var l: Dictionary = sim.live[k]
+		var p: Vector2 = l.pos
+		var charge := sim.charge_of(l)
+		var ready_pulse: float = _ready_pulse[k] if k < _ready_pulse.size() else 0.0
+		if charge < 1.0:
+			ArtKit.sprite(self, "track", p, 22.0, Color(LIVE_COL, 0.2))
 		else:
 			if ready_pulse > 0.0:
-				draw_arc(p, 22.0 * (1.0 + 0.3 * (1.0 - ready_pulse)), 0, TAU, 32, Color(LIVE_COL, 0.9 * ready_pulse), 4.0, true)
-			draw_arc(p, float(sim.cfg.hit_radius), 0, TAU, 40, Color(LIVE_COL, 0.2), 1.5, true)
+				ArtKit.sprite(self, "track", p, 22.0 * (1.0 + 0.3 * (1.0 - ready_pulse)), Color(LIVE_COL, 0.9 * ready_pulse))
+			ArtKit.sprite(self, "hitring", p, float(sim.cfg.hit_radius), Color(LIVE_COL, 0.2))
+	for k in sim.live.size():
+		var charge := sim.charge_of(sim.live[k])
+		if charge < 1.0:
+			var sides := maxi(4, int(24.0 * charge))
+			draw_multiline(Batch2D.arc(sim.live[k].pos, 22.0, -PI * 0.5, -PI * 0.5 + TAU * charge, sides), Color(LIVE_COL, 0.9), 4.0, true)
 
 
 func _draw_flashes() -> void:
 	for f in flashes:
 		var k: float = f.age / 0.45
 		var r: float = lerpf(10.0, float(sim.cfg.hit_radius) * (1.6 if f.big else 1.2), k)
-		draw_arc(f.pos, r, 0, TAU, 32, Color(f.color, (1.0 - k) * 0.9), 4.0 * (1.0 - k) + 1.0, true)
+		draw_multiline(Batch2D.ring(f.pos, r, 32, 0.5), Color(f.color, (1.0 - k) * 0.9), 4.0 * (1.0 - k) + 1.0, true)
 
 
 func _draw_fliers() -> void:
@@ -738,8 +841,8 @@ func _draw_fliers() -> void:
 		var e := k * k * (3.0 - 2.0 * k)
 		var mid: Vector2 = (f.from + f.to) * 0.5 + Vector2(0, -120)
 		var p: Vector2 = f.from.lerp(mid, e).lerp(mid.lerp(f.to, e), e)
-		draw_texture_rect(_glow, Rect2(p - Vector2(18, 18), Vector2(36, 36)), false, Color(f.color, 0.9 * (1.0 - k * 0.5)))
-		draw_circle(p, 4.0, Color(1, 1, 1, 0.9))
+		_glow_rect(Rect2(p - Vector2(18, 18), Vector2(36, 36)), Color(f.color, 0.9 * (1.0 - k * 0.5)))
+		_dot(p, 4.0, Color(1, 1, 1, 0.9))
 
 
 func _draw_popups() -> void:
@@ -748,6 +851,4 @@ func _draw_popups() -> void:
 		var a := clampf(1.0 - (p.age - (life - 0.5)) / 0.5, 0.0, 1.0)
 		var fs: int = p.size
 		var w := _font.get_string_size(p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var pos: Vector2 = p.pos - Vector2(w * 0.5, 0)
-		draw_string_outline(_font, pos, p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Color(0.03, 0.03, 0.08, 0.85 * a))
-		draw_string(_font, pos, p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(p.color, a))
+		_texts.append([(p.pos as Vector2) - Vector2(w * 0.5, 0), p.text, fs, Color(p.color, a), 8, Color(0.03, 0.03, 0.08, 0.85 * a)])

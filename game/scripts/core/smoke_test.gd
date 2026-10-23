@@ -37,6 +37,7 @@ static func run(tree: SceneTree) -> void:
 	# Static caches would otherwise be reported as resources leaked at exit.
 	UiTheme._cached = null
 	ArtKit._glow = null
+	ArtKit._atlas = null
 	await tree.process_frame
 	tree.quit(0)
 
