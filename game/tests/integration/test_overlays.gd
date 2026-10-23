@@ -84,3 +84,53 @@ func test_sternbilder_page_shows_the_last_nights() -> void:
 	assert_true(texts.has("Ø der letzten 2: 1.025 · Morgengrauen 1 von 2"), "summary line")
 	panel.queue_free()
 	save.data.history = before
+
+
+func test_privacy_page_matches_the_ad_backend() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	save.set_setting("ads_preview", true)
+	var panel := PrivacyPanel.new()
+	menu.add_child(panel)
+	await frames(2)
+	var texts: Array = panel.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	assert_true(texts.any(func(t): return str(t).contains("PLATZHALTER")), "debug build: says the ads are placeholders")
+	var buttons: Array = panel.find_children("*", "Button", true, false).map(func(b): return (b as Button).text)
+	assert_true(buttons.has("Werbe-Einwilligung ändern"), "consent can be changed")
+	panel.queue_free()
+	save.set_setting("ads_preview", false)
+	await frames(1)
+	panel = PrivacyPanel.new()
+	menu.add_child(panel)
+	await frames(2)
+	buttons = panel.find_children("*", "Button", true, false).map(func(b): return (b as Button).text)
+	assert_false(buttons.has("Werbe-Einwilligung ändern"), "no ads -> no consent button")
+	assert_true(PrivacyPanel.text_for("admob").contains("TESTANZEIGEN von Google AdMob"), "ads test build names Google")
+	panel.queue_free()
+
+
+func test_a_locked_paper_can_be_worn_for_one_night_after_a_rewarded_ad() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	var ads := get_node("/root/Ads") as AdService
+	save.set_setting("ads_preview", true)
+	save.data["paper_trial"] = ""
+	var unlocks: Dictionary = (save.data.unlocks as Dictionary).duplicate()
+	save.data.unlocks = {}
+	var mock := ads._adapter as MockAdAdapter
+	mock.auto_answer = "granted"
+	mock.auto_reward = "earned"
+	var panel := CollectionPanel.new()
+	menu.add_child(panel)
+	await frames(2)
+	var tries: Array = panel.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text == "1 Nacht testen (Werbung)")
+	assert_true(tries.size() >= 1, "locked papers offer a one-night trial")
+	if tries.size() >= 1:
+		(tries[0] as Button).pressed.emit()
+		await frames(3)
+		assert_true(str(save.data.paper_trial) != "", "after the ad the paper is lent for the next night")
+	panel.queue_free()
+	mock.auto_answer = ""
+	mock.auto_reward = ""
+	save.data.unlocks = unlocks
+	save.data.ads.consent = "unknown"
+	save.data["paper_trial"] = ""
+	save.set_setting("ads_preview", false)

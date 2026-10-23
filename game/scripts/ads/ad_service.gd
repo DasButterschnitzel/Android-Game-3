@@ -4,16 +4,21 @@ extends Node
 ##   on_round_finished()                  a night ended (not a restart or quit)
 ##   await maybe_show_interstitial()      at a natural break; returns when closed or skipped
 ##   show_consent_form()                  from the privacy panel
+##   rewarded_available() / await show_rewarded()   only when the player asks for it
 ## Every decision goes through AdPolicy. Ads never block the game: a missing
 ## SDK, no network, no consent or a failed load simply means "no ad".
 ## Adapters: "none" (no ads at all), "mock" (offline placeholder clearly marked
 ## as a test, for debug builds and tests), "admob" (Android plugin with
 ## Google's public test ad units only; see docs/compliance/ADS_AND_CONSENT.md).
+## The experimental "Android-AdsTest" export (feature tag "nachhall_ads") uses
+## "adapter_ads_test" and "ads_test_overrides" from the config instead
+## (docs/compliance/ADS_TEST_BUILD.md).
 
 signal consent_changed(status: String)
 signal interstitial_closed(shown: bool)
 
 const CONFIG_PATH := "res://data/ads.json"
+const ADS_TEST_FEATURE := "nachhall_ads"
 
 var policy := AdPolicy.new()
 var config: Dictionary = {}
@@ -30,12 +35,25 @@ func _ready() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if typeof(data) == TYPE_DICTIONARY:
 			config = data
+	var ads_test := OS.has_feature(ADS_TEST_FEATURE)
+	if ads_test:
+		config = ads_test_config(config)
 	policy.configure(config)
 	var save := _save()
 	if save:
 		policy.lifetime_rounds = int(save.data.stats.rounds_played)
-	var wanted := str(config.get("adapter_debug" if OS.is_debug_build() else "adapter_release", "none"))
-	use_adapter(wanted)
+	var key := "adapter_ads_test" if ads_test else ("adapter_debug" if OS.is_debug_build() else "adapter_release")
+	use_adapter(str(config.get(key, "none")))
+
+
+## Config of the experimental ads test build: "ads_test_overrides" (shorter
+## intervals so a device test reaches consent and an ad quickly) on top.
+static func ads_test_config(base: Dictionary) -> Dictionary:
+	var merged := base.duplicate(true)
+	var overrides = merged.get("ads_test_overrides", {})
+	if overrides is Dictionary:
+		merged.merge(overrides, true)
+	return merged
 
 
 func _process(delta: float) -> void:
@@ -66,8 +84,15 @@ func use_adapter(name: String) -> void:
 		add_child(_adapter)
 
 
+## False when there is no backend, the master switch in ads.json is off, or a
+## tester switched the placeholders off (debug setting "ads_preview").
 func ads_enabled() -> bool:
-	return _adapter != null
+	if _adapter == null or not bool(config.get("ads_enabled", true)):
+		return false
+	var save := _save()
+	if save and OS.is_debug_build() and not bool(save.get_setting("ads_preview")):
+		return false
+	return true
 
 
 ## Consent state from the save: unknown | granted | denied | not_required.
@@ -96,7 +121,7 @@ func on_round_finished() -> void:
 ## few nights rather than at the first start; then shows an interstitial if the
 ## caps allow it. Always returns; never longer than the ad itself.
 func maybe_show_interstitial() -> bool:
-	if _adapter == null or _busy:
+	if not ads_enabled() or _busy:
 		return false
 	_busy = true
 	if not consent_ready() and policy.lifetime_rounds >= int(config.get("consent_after_rounds", 2)):
@@ -112,9 +137,27 @@ func maybe_show_interstitial() -> bool:
 	return shown
 
 
+## Optional rewarded ad (cosmetic reward only, never needed to win).
+func rewarded_available() -> bool:
+	return ads_enabled() and bool(config.get("rewarded_enabled", false)) and _adapter.supports_rewarded()
+
+
+## The player asked for it: consent first if it was never asked, then the ad.
+## True only if the ad was watched to the end.
+func show_rewarded() -> bool:
+	if not rewarded_available() or _busy:
+		return false
+	_busy = true
+	if not consent_ready():
+		_set_consent(await _adapter.request_consent())
+	var earned: bool = await _adapter.show_rewarded(consent_status() == "granted")
+	_busy = false
+	return earned
+
+
 ## Privacy panel: change consent at any time.
 func show_consent_form() -> void:
-	if _adapter == null or _busy:
+	if not ads_enabled() or _busy:
 		return
 	_busy = true
 	var status: String = await _adapter.request_consent(true)

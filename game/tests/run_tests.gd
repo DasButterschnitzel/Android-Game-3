@@ -24,6 +24,8 @@ func _run() -> void:
 		if FileAccess.file_exists(save.path):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(save.path))
 		save.load_from_disk()
+		# Debug builds show ad placeholders; tests that want them switch them on.
+		save.set_setting("ads_preview", false)
 	var filter := ""
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:

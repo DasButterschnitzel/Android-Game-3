@@ -49,6 +49,7 @@ var _dim: ColorRect
 var _round_time := 0.0
 var _freeze := 0  # physics frames of hit-stop left (the sim just waits; replays stay exact)
 var again_button: Button  # results screen, for tests and captures
+var _leaving := false  # results left (ad may be on screen): ignore further taps
 
 
 func _save() -> SaveStore:
@@ -131,7 +132,9 @@ func new_round() -> void:
 	var save := _save()
 	hud.best = _best(save)
 	if save:
-		view.set_paper(str(save.get_setting("lantern_paper")))
+		# A locked paper lent for one night (optional rewarded ad), else the chosen one.
+		var trial := str(save.data.get("paper_trial", ""))
+		view.set_paper(trial if trial != "" else str(save.get_setting("lantern_paper")))
 	audio.attach(sim)
 	fx.clear()
 	_reset_input()
@@ -421,6 +424,7 @@ func _on_game_over(score: int, survived: bool) -> void:
 	var is_best := false
 	if save:
 		is_best = save.record_echo_round(score, sim.stats, _round_time, daily, mode)
+		save.data["paper_trial"] = ""  # the lent paper was for this night
 		earned = Progression.evaluate({
 			"score": score, "survived": survived, "flames_left": sim.core_hp,
 			"solo_perfect": int(sim.stats.solo_perfect) > 0, "echo_perfect": int(sim.stats.echo_perfect) > 0,
@@ -433,6 +437,9 @@ func _on_game_over(score: int, survived: bool) -> void:
 	targets.clear()
 	audio.round_over(survived)
 	round_finished.emit(score, is_best)
+	var ads := get_node_or_null("/root/Ads")
+	if ads and ads.has_method("on_round_finished"):  # only when an ad service exists
+		ads.on_round_finished()
 	_show_results(score, is_best, survived)
 
 
@@ -538,21 +545,35 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 
 
 func _on_again() -> void:
-	var ads := get_node_or_null("/root/Ads")
-	if ads and ads.has_method("maybe_show_interstitial"):
-		await ads.maybe_show_interstitial()
+	if _leaving:
+		return
+	_leaving = true
+	await _natural_break()
+	_leaving = false
 	new_round()
 
 
-func _to_menu() -> void:
-	var ads := get_node_or_null("/root/Ads")
-	if ads and ads.has_method("maybe_show_interstitial"):
-		await ads.maybe_show_interstitial()
+## natural_break: the night is over (results). Leaving a night from the pause
+## menu is no natural break: never an ad there.
+func _to_menu(natural_break := true) -> void:
+	if _leaving:
+		return
+	_leaving = true
+	if natural_break:
+		await _natural_break()
 	var flow := get_node_or_null("/root/Flow")
 	if flow:
 		flow.go("res://scenes/menus/main_menu.tscn")
 	else:
 		get_tree().change_scene_to_file("res://scenes/menus/main_menu.tscn")
+
+
+## Results screen -> next night or menu: the only place an interstitial may
+## appear (AdService decides with its caps; returns at once without an ad).
+func _natural_break() -> void:
+	var ads := get_node_or_null("/root/Ads")
+	if ads and ads.has_method("maybe_show_interstitial"):
+		await ads.maybe_show_interstitial()
 
 
 func pause() -> void:
@@ -586,7 +607,7 @@ func pause() -> void:
 	menu.pressed.connect(func():
 		audio.set_paused(false)
 		_close_overlay()
-		_to_menu())
+		_to_menu(false))
 
 
 func resume_play() -> void:

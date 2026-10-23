@@ -12,6 +12,7 @@ Stand: 2026-10-22 · geprüft zu Projektbeginn (Agent E – Lead Engineer)
 | JDK | OpenJDK 21 (Godot empfiehlt 17, höhere Versionen werden laut Doku unterstützt) | `/usr/lib/jvm/java-21-openjdk-amd64` |
 | Android SDK | cmdline-tools 23.0, platform-tools, build-tools 35.0.1 + 36.1.0, platform android-35 | `/opt/android-sdk` |
 | APK-Export | **funktioniert** (nicht-Gradle-Export mit vorgefertigtem Template) | `tools/build_android.sh` → APK + `*.verify.txt` |
+| Gradle-Export (2026-10-23) | **funktioniert** (Godot-Vorlage 4.7.2, Gradle 8.11.1, AGP 8.6.1; braucht Plattform android-36; in der Sandbox Maven-Central-Spiegel wegen HTTP 429) | `tools/build_ads_test.sh`, `docs/compliance/ADS_TEST_BUILD.md` |
 | APK-Verifikation | aapt2 (Manifest, SDK-Level, Berechtigungen), apksigner (Signatur v2/v3) | `builds/android/*.verify.txt` |
 | Rendering ohne Display | Xvfb + Mesa llvmpipe (OpenGL 3.3/ES 3.0-kompatibel) rendert echte Frames | Screenshot-Test erfolgreich |
 | Video/Audio-Werkzeuge | ffmpeg 6.1 (libvorbis, libopus), ImageMagick 6.9, Python 3 + numpy + scipy | `ffmpeg -encoders` |

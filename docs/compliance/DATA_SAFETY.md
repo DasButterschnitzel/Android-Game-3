@@ -1,28 +1,33 @@
 # Play Console – Data-Safety-Angaben (Entwurf)
 
-> Entwurf zur Vorbereitung; die verbindlichen Angaben macht der Inhaber in der Play Console. Für SDKs gelten die
-> Angaben der Hersteller (für AdMob: Googles „Data disclosure“-Seite des Mobile Ads SDK) – vor der Abgabe prüfen.
+> Entwurf zur Vorbereitung; die verbindlichen Angaben macht der Inhaber in der Play Console. Stand 0.6.0.
 
-## Version ohne Werbung (bis 0.5, aktueller Stand)
+## A. `Android`-Build (alle bisherigen Test-APKs; Release ohne Werbung)
 | Frage | Antwort | Begründung |
 |---|---|---|
-| Erhebt oder teilt die App Nutzerdaten? | **Nein** | keine Netzwerkberechtigung, nur lokale Speicherung |
+| Erhebt oder teilt die App Nutzerdaten? | **Nein** | keine Netzwerkberechtigung, nur lokale Speicherung; die Werbe-Platzhalter der Debug-Builds laden und senden nichts |
 | Werden Daten verschlüsselt übertragen? | entfällt | keine Übertragung |
-| Können Nutzer Löschung verlangen? | entfällt / App-Deinstallation löscht alles | nur lokale Daten |
-| Berechtigungen | `VIBRATE` | Vibrations-Rückmeldung |
+| Können Nutzer Löschung verlangen? | entfällt / Deinstallation löscht alles | nur lokale Daten |
+| Berechtigungen | `VIBRATE` | Vibrations-Rückmeldung (abschaltbar) |
 
-## Version mit Werbung (ab 0.6-Vorschau, nur mit Test-Anzeigen; produktiv erst nach Freigabe)
-Voraussichtliche Angaben bei Nutzung des Google Mobile Ads SDK (laut Hersteller; vor Abgabe abgleichen):
+## B. Mit Google Mobile Ads SDK (Werbetest-Build `Android-AdsTest`; später eine Werbe-Version)
+Quelle: Googles „Data disclosure“ für das Google Mobile Ads SDK, gültig für **Version 25.5.0** (die im Werbetest-Build
+verwendete), abgerufen am 2026-10-23:
+<https://developers.google.com/admob/android/privacy/play-data-disclosure>. Laut Seite werden alle Daten
+**automatisch erhoben und geteilt**, Zweck **Werbung, Analysen, Betrugsprävention**, **verschlüsselt übertragen (TLS)**.
 
-| Datentyp | erhoben | geteilt | Zweck | optional? |
-|---|---|---|---|---|
-| Geräte- oder andere IDs (Werbe-ID, App-Set-ID) | ja | ja | Werbung/Marketing, Analysen, Betrugsprävention | nein (SDK-Funktion), Personalisierung nur mit Einwilligung |
-| Ungefährer Standort (aus IP) | ja | ja | Werbung, Betrugsprävention | nein |
-| App-Aktivität (Interaktionen mit Anzeigen) | ja | ja | Werbung, Analysen | nein |
-| App-Infos und Leistung (Absturzprotokolle, Diagnose) | ja | ja | Analysen, Betrugsprävention | nein |
+| Laut Google | Kategorie im Play-Formular (unsere Zuordnung, vom Inhaber zu prüfen) | erhoben | geteilt |
+|---|---|---|---|
+| IP-Adresse (zur Schätzung des ungefähren Standorts) | Standort → ungefährer Standort | ja | ja |
+| Produkt-Interaktionen (App-Start, Taps, Video-Aufrufe) | App-Aktivität → App-Interaktionen | ja | ja |
+| Diagnose (Leistung von App und SDK) | App-Informationen und -Leistung → Diagnose | ja | ja |
+| Geräte- und Konto-Kennungen (Werbe-ID, App-Set-ID) | Geräte- oder andere IDs | ja | ja |
 
-Weitere Pflichten bei Werbung:
-- Manifest: `com.google.android.gms.permission.AD_ID` (Zielplattform ≥ API 33 und Nutzung der Werbe-ID), `INTERNET`,
-  `ACCESS_NETWORK_STATE`; AdMob-App-ID als `meta-data` (nur mit echtem Konto des Inhabers).
-- Fragebogen „Enthält Werbung“: **Ja** (ab Werbe-Version).
-- Zielgruppe/Altersfreigabe (IARC) konsistent mit Werbeeinstellungen (keine personalisierte Werbung für Kinder).
+Laut derselben Seite ist die Erhebung der Werbe-ID per Manifest abschaltbar; Funktionen wie „Limited Ads“ können die
+Übertragung von Werbe-ID und weiteren Daten unterbinden. Optionale SDK-Funktionen können weitere Angaben nötig machen.
+
+Weitere Punkte bei Werbung:
+- Fragebogen „Enthält Werbung“: **Ja** (nur für eine Version mit Werbung).
+- Berechtigungen im Werbetest-Build (vom SDK eingebracht): `INTERNET`, `ACCESS_NETWORK_STATE`, `AD_ID`,
+  `ACCESS_ADSERVICES_*`, `WAKE_LOCK`, `FOREGROUND_SERVICE` – vor einer Veröffentlichung einzeln prüfen und ggf. deklarieren.
+- Zielgruppe/Altersfreigabe (IARC) konsistent mit den Werbeeinstellungen (keine personalisierte Werbung für Kinder).

@@ -16,6 +16,20 @@ als getestet.** Bots und Simulationen sind keine Menschen.
 | CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Artefakt-Upload |
 | Android-Gerät / Emulator | **nicht verfügbar** (keine KVM, kein Gerät). Gerätetests: `docs/playtests/DEVICE_TEST_PLAN.md` |
 
+## 0.6.0 (2026-10-23)
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Unit- und Integrationstests | `run_tests.gd` | **138 / 138 grün** (neu u. a.: AdMob-Adapter gegen nachgebautes Singleton (12, Spike), Test-ID-Sperren, Werbetest-Konfiguration, Rewarded nur bei vollem Ansehen + Einwilligung zuerst, Hauptschalter und Tester-Schalter schalten alles ab (auch die Frage), Frequenz ≤ 12/h für 20–180-s-Nächte, **keine Anzeige beim Abbruch über das Pausemenü**, eine Anzeige an der natürlichen Pause, Datenschutz-Seite je Backend, Papier-Probenacht genau eine Nacht) |
+| Smoke-Test exportierter Build | `tools/smoke_exported.sh` | `SMOKE OK`; neu: `/root/Ads` im exportierten Build, Adapter `mock`, Einwilligung + Interstitial laufen durch (`consent=denied interstitial=true`) |
+| Standard-APK | `tools/build_android.sh game builds/android/nachhall-0.6.0-debug.apk debug` | 60.191.296 Bytes, SHA-256 `a4b2c076…0991`, Signatur gültig (Debug), Berechtigung nur `VIBRATE`, **0 Werbe-SDK-Klassen, kein `INTERNET`** (`tools/verify_ads_build.sh`, Berichte in `docs/builds/`) |
+| Werbetest-APK | `tools/build_ads_test.sh builds/android/nachhall-adstest-0.6.0-debug.apk` | 70.782.632 Bytes, SHA-256 `c1eb7de0…d0e2`, Paket `….nachhall.adstest`, App-ID = Googles Test-ID, Plugin registriert, 658 `gms/ads`- und 19 `ump`-Klassen, Signatur gültig (Debug) |
+| Sichtprüfung | Standbilder der Platzhalter, Datenschutz- und Sternbilder-Seite (`docs/media/nachhall_0.6.0_ads_preview.jpg`) | fand einen unklaren Bezug „Ausprobieren“-Knopf ↔ Papier → Karten je Papier |
+
+**Nicht getestet:** die Werbetest-APK auf einem Gerät (lädt das Plugin? erscheint das UMP-Formular? kommt eine
+Testanzeige und schließt sie? läuft das Spiel danach normal?), Verhalten offline auf dem Gerät, Netzverkehr des SDK vor
+der Einwilligung, Release-Builds. Checkliste: `docs/compliance/ADS_TEST_BUILD.md` §8.
+
 ## 0.5.0 (2026-10-23)
 
 | Prüfung | Befehl | Ergebnis |

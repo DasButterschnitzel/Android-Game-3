@@ -26,6 +26,7 @@ cd game && godot --headless --path . --import # einmalig: Assets importieren
 godot --headless --path game --script res://tests/run_tests.gd          # Tests
 tools/smoke_exported.sh                       # exportierter Linux-Build spielt eine Nacht mit Bot
 tools/build_android.sh game builds/android/nachhall-debug.apk debug   # APK bauen + prüfen
+tools/build_ads_test.sh builds/android/nachhall-adstest-debug.apk     # Werbetest-APK (Gradle, Google-Test-IDs)
 godot --headless --path game --script res://tests/simulation/sim_echo.gd -- 40 7000 600 | python3 tools/sim/summarize_echo.py
 tools/capture.sh /tmp/cap 40 scene=res://scenes/gameplay/echo_game.tscn profile=early seed=11   # Video
 python3 tools/audio/make_nachhall_audio.py && python3 tools/audio/analyze_audio.py --report docs/audio/AUDIO_REPORT.md

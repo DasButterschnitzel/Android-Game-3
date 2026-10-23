@@ -1,0 +1,15 @@
+@tool
+extends EditorPlugin
+## Editor side of the NachhallAds Android plugin: registers the export plugin.
+
+var _export: EditorExportPlugin
+
+
+func _enter_tree() -> void:
+	_export = preload("export_plugin.gd").new()
+	add_export_plugin(_export)
+
+
+func _exit_tree() -> void:
+	remove_export_plugin(_export)
+	_export = null

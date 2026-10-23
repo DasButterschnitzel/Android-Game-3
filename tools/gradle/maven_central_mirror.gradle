@@ -1,0 +1,26 @@
+// Optional Gradle init script: resolve Maven Central through Google's official mirror
+// (maven-central.storage-download.googleapis.com). Needed in the studio sandbox, where
+// repo.maven.apache.org intermittently answers HTTP 429 (rate limit) behind the shared
+// proxy and Gradle then fails instead of trying the next repository.
+// Install for all Gradle builds of this user, including the one Godot starts:
+//   mkdir -p ~/.gradle/init.d && cp tools/gradle/maven_central_mirror.gradle ~/.gradle/init.d/
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def central = ['https://repo.maven.apache.org/maven2', 'https://repo1.maven.org/maven2']
+
+def redirect = { RepositoryHandler repos ->
+    repos.withType(MavenArtifactRepository).configureEach { repo ->
+        if (central.any { repo.url.toString().startsWith(it) }) {
+            repo.url = mirror
+        }
+    }
+}
+
+beforeSettings { settings ->
+    redirect(settings.pluginManagement.repositories)
+    redirect(settings.dependencyResolutionManagement.repositories)
+}
+
+allprojects {
+    redirect(repositories)
+    buildscript { redirect(repositories) }
+}

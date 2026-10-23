@@ -87,27 +87,67 @@ func _stats_text(s: Dictionary, save: SaveStore) -> Label:
 func _papers(unlocks: Dictionary, save: SaveStore) -> Control:
 	var row := HFlowContainer.new()
 	row.add_theme_constant_override("h_separation", 14)
-	row.add_theme_constant_override("v_separation", 14)
+	row.add_theme_constant_override("v_separation", 18)
 	var current := str(save.get_setting("lantern_paper")) if save else "classic"
+	var lent_id := str(save.data.get("paper_trial", "")) if save else ""
 	for id in Progression.PAPERS:
 		var p: Dictionary = Progression.PAPERS[id]
 		var open := Progression.paper_unlocked(id, unlocks)
-		var need: String = Progression.ACHIEVEMENTS[p.unlock].name if p.unlock != "" else ""
-		var b := UiTheme.button(p.name if open else "(%s)" % need, Vector2(196, 88))
-		b.add_theme_font_size_override("font_size", 24 if open else 20)
+		# One small card per paper: the paper itself, and while locked what opens it
+		# (plus the optional one-night trial).
+		var card := VBoxContainer.new()
+		card.add_theme_constant_override("separation", 6)
+		var b := UiTheme.button(p.name, Vector2(196, 80))
+		b.add_theme_font_size_override("font_size", 24)
+		b.icon = _swatch(p.paper, p.rib)
 		b.disabled = not open
-		if open:
-			b.icon = _swatch(p.paper, p.rib)
-		if id == current:
+		if id == current and open:
 			b.add_theme_stylebox_override("normal", UiTheme._box(Color(p.paper, 0.35), 22))
-		b.tooltip_text = "" if open else "Freischalten: " + Progression.ACHIEVEMENTS[p.unlock].text
 		var pid: String = id
 		b.pressed.connect(func():
 			if save:
 				save.set_setting("lantern_paper", pid)
 			_rebuild())
-		row.add_child(b)
+		card.add_child(b)
+		if not open:
+			if id == lent_id:
+				card.add_child(_note("trägst du nächste Nacht", UiTheme.GOOD))
+			elif _trial_offered(save):
+				var t := UiTheme.button("1 Nacht testen (Werbung)", Vector2(196, 56))
+				t.add_theme_font_size_override("font_size", 18)
+				t.pressed.connect(func(): _try_paper(pid))
+				card.add_child(t)
+			card.add_child(_note("Freischalten: " + Progression.ACHIEVEMENTS[p.unlock].name, UiTheme.TEXT_DIM))
+		row.add_child(card)
 	return row
+
+
+func _note(text: String, col: Color) -> Label:
+	var l := UiTheme.label(text, 18, col)
+	l.custom_minimum_size = Vector2(196, 0)
+	return l
+
+
+func _ads() -> Node:
+	return get_node_or_null("/root/Ads")
+
+
+func _trial_offered(save: SaveStore) -> bool:
+	var ads := _ads()
+	return save != null and str(save.data.get("paper_trial", "")) == "" and ads != null \
+		and ads.has_method("rewarded_available") and ads.rewarded_available()
+
+
+func _try_paper(id: String) -> void:
+	var ads := _ads()
+	if ads == null:
+		return
+	var earned: bool = await ads.show_rewarded()
+	var save := _save()
+	if earned and save and is_inside_tree():
+		save.data["paper_trial"] = id
+		save.mark_dirty("paper_trial")
+		_rebuild()
 
 
 func _swatch(paper: Color, rib: Color) -> Texture2D:

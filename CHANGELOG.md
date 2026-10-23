@@ -4,6 +4,33 @@ Alle Builds sind Debug-APKs (Debug-Zertifikat), nicht für den Store bestimmt. �
 automatische Tests, Bot-Simulationen und Linux-Smoke-Test des exportierten Builds. **Kein Build wurde bisher auf
 einem echten Android-Gerät oder Emulator gestartet** (keine KVM-Virtualisierung, kein Gerät in dieser Umgebung).
 
+## 0.6.0 – „Monetization Preview“ (2026-10-23)
+
+Keine echte Werbung: Die Test-APK zeigt deutlich markierte **Platzhalter** (offline, ohne Internet-Berechtigung).
+Daneben gibt es eine separate **Werbetest-APK** (`Nachhall Werbetest`, eigenes Paket) mit dem echten Google Mobile Ads
+SDK und ausschließlich Googles öffentlichen **Test-IDs** (ADR 0004).
+
+### Neu
+- **Werbe-Dienst im Spiel** (Autoload `Ads`): Debug = Platzhalter, Release = keine Werbung, Werbetest-Build = AdMob mit
+  Test-IDs. Hauptschalter in `ads.json`, Tester-Schalter „Werbe-Platzhalter (Test)“ in den Einstellungen (Debug).
+- **Vollbild-Werbung nur an der natürlichen Pause** (Ergebniskarte → „Nochmal“/„Menü“): frühestens nach 5 Nächten
+  seit Installation und 3 in der Sitzung, höchstens jede 4. Nacht, mindestens **5 Minuten** Abstand (≤ 12 pro Stunde
+  im ungünstigsten Fall; die Vorgabe mit 3 Minuten hätte verlierenden Spielern bis zu 20 erlaubt). Nie beim Verlassen
+  einer Nacht über das Pausemenü.
+- **Einwilligung** (Test-Ablauf bzw. Google UMP) nach der zweiten Nacht oder vor der ersten gewünschten
+  Belohnungs-Werbung; jederzeit änderbar auf der Datenschutz-Seite. Offline: später erneut.
+- **Belohnungs-Werbung, rein kosmetisch und freiwillig:** ein gesperrtes Laternenpapier eine Nacht lang ausprobieren
+  (Seite „Sternbilder“, jedes Papier als eigene Karte mit Freischalt-Bedingung).
+- **Werbetest-Build** (aus dem Spike von Agent E2): eigenes Godot-Android-Plugin für Google Mobile Ads 25.5.0 + UMP
+  4.0.0, Gradle-Export, Prüfskript; die Standard-APK bleibt ohne SDK und ohne `INTERNET` (geprüft).
+- Datenschutz-Seite nennt je Build, was passiert (keine Werbung / Platzhalter / Google-Testanzeigen).
+- Compliance: ADR 0004, `ADS_AND_CONSENT.md` (Platzierungen, Frequenz-Analyse), `DATA_SAFETY.md` und
+  `PRIVACY_POLICY.md` mit Googles Datenangaben für SDK 25.5.0.
+
+### Behoben
+- Ein Pfeil-Zeichen im Einwilligungs-Text, das die Schrift nicht hat, wäre als Kästchen erschienen (vom Glyphen-Test
+  vor dem Build gefunden).
+
 ## 0.5.0 – „Replayability“ (2026-10-23)
 
 ### Neu

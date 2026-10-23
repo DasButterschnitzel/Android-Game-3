@@ -33,6 +33,7 @@ static func defaults() -> Dictionary:
 			"second_finger": true,  # a second finger lights a second light
 			"sensitivity": 1.0,  # relative control gain factor: 0.75 low, 1.0 normal, 1.3 high
 			"lantern_paper": "classic",  # cosmetic, see Progression.PAPERS
+			"ads_preview": true,  # debug builds: show the marked ad placeholders
 		},
 		"stats": {
 			"best_score": 0,
@@ -55,6 +56,7 @@ static func defaults() -> Dictionary:
 		"unlocks": {},
 		"history": [],  # last nights, newest last: {s: score, w: waves banked, d: dawn, m: mode, q: daily}
 		"onboarding": {},  # hint key -> true once shown
+		"paper_trial": "",  # locked lantern paper lent for the next night (rewarded ad)
 		"pending_daily": false,
 		"pending_mode": "",  # "" normal night, "fullmoon"
 		"ads": {

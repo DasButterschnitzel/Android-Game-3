@@ -43,6 +43,7 @@ func _ready() -> void:
 	if OS.is_debug_build():
 		box.add_child(_control_row())  # only the parked LUNTE lab scene uses it
 		box.add_child(_cvd_row())
+		box.add_child(_toggle("Werbe-Platzhalter (Test)", "ads_preview"))
 	var privacy := UiTheme.button("Datenschutz & Werbung")
 	privacy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	privacy.pressed.connect(_show_privacy)

@@ -102,12 +102,14 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 - **Vollmond** (schwerer, freigeschaltet durch das erste Morgengrauen) als Ziel für Geübte.
 - Keine Energie, keine Wartezeiten, keine Echtgeld-Währung, keine Lootboxen, keine Streak-Strafen, kein Login.
 
-## 9. Werbung (Rahmen, Umsetzung ab 0.6)
+## 9. Werbung (umgesetzt als Vorschau in 0.6, ADR 0004)
 - Nie während eines Laufs, nie direkt nach dem ersten Start, nie bei jedem Verlust.
 - Neue Spieler: die ersten 5 Nächte überhaupt werbefrei; pro Sitzung frühestens nach 3 Nächten, danach höchstens jede
-  4. Nacht und nie öfter als alle 3 Minuten (`AdPolicy`, getestet; Obergrenze im ungünstigsten Fall ≈ 10/h bei
-  90-s-Nächten – wird in 0.6 geprüft). Einwilligung wird erst nach der zweiten Nacht erfragt, nicht beim ersten Start;
-  Rewarded nur optional und fair. Werbung vollständig abschaltbar; Spiel funktioniert ohne Netz.
+  4. Nacht und nie öfter als alle 5 Minuten (`AdPolicy`, getestet; ungünstigster Fall ≤ 12/h – die ursprünglichen
+  3 Minuten hätten verlierenden Spielern bis zu 20/h erlaubt). Nur beim Verlassen der Ergebniskarte, nie beim Abbruch
+  über das Pausemenü. Einwilligung wird erst nach der zweiten Nacht erfragt, nicht beim ersten Start;
+  Rewarded nur auf Wunsch und rein kosmetisch (ein gesperrtes Laternenpapier eine Nacht lang). Werbung vollständig
+  abschaltbar; Spiel funktioniert ohne Netz. Details und Frequenz-Analyse: `docs/compliance/ADS_AND_CONSENT.md`.
 
 ## 10. Offene Risiken (für den Gerätetest)
 1. Kommt der Aha-Moment in der ersten Minute? (Kriterium: ≥ 4/5 erklären Echos nach Runde 1.)

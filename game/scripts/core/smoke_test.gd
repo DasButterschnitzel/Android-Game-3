@@ -33,6 +33,9 @@ static func run(tree: SceneTree) -> void:
 		inst.queue_free()
 		await tree.process_frame
 		print("SMOKE scene ok ", path)
+	if not await _check_ads(tree):
+		tree.quit(1)
+		return
 	print("SMOKE OK")
 	# Static caches would otherwise be reported as resources leaked at exit.
 	UiTheme._cached = null
@@ -83,3 +86,28 @@ static func _play_echo_round(tree: SceneTree, g: EchoGame) -> void:
 				if not g.targets.is_empty():
 					g.targets[0] = sim.live[0].pos + bot.delta()
 	print("SMOKE echo round state=%s score=%d waves=%d dawn=%s" % [g.state, g.sim.score, g.sim.stats.waves_banked, str(g.sim.stats.dawn)])
+
+
+## The ad service in the exported build: the debug placeholders answer
+## automatically here; consent is asked, an interstitial passes, nothing blocks.
+static func _check_ads(tree: SceneTree) -> bool:
+	var ads := tree.root.get_node_or_null("Ads") as AdService
+	if ads == null:
+		print("SMOKE FAIL ads: no /root/Ads")
+		return false
+	var save := tree.root.get_node_or_null("Save") as SaveStore
+	if save:
+		save.set_setting("ads_preview", true)
+	print("SMOKE ads adapter=", ads.adapter_name, " enabled=", ads.ads_enabled())
+	if ads.adapter_name != "mock":
+		return true  # release-like builds: nothing to show
+	var mock := ads._adapter as MockAdAdapter
+	mock.auto_answer = "denied"
+	mock.auto_close = true
+	ads.policy.lifetime_rounds = 50
+	for i in 10:
+		ads.on_round_finished()
+	ads._clock += 10000.0
+	var shown: bool = await ads.maybe_show_interstitial()
+	print("SMOKE ads consent=", ads.consent_status(), " interstitial=", shown)
+	return shown and ads.consent_status() == "denied"

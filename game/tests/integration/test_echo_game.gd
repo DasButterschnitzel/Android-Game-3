@@ -334,3 +334,61 @@ func test_unread_notes_come_back_and_situational_ones_expire() -> void:
 	await frames(10)
 	assert_eq(game.hud.note_text(), "Wissen A", "a read note may stay until the next run")
 	assert_true(game.hud._queued.is_empty(), "the situational note expired with the run")
+
+
+class SpyAdapter extends AdAdapter:
+	var interstitials := 0
+	func request_consent(_force := false) -> String:
+		return "denied"
+	func show_interstitial(_personalized: bool) -> bool:
+		interstitials += 1
+		return true
+
+
+func test_ads_only_at_the_natural_break_after_a_night() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	var ads := get_node("/root/Ads") as AdService
+	var spy := SpyAdapter.new()
+	var old_adapter: AdAdapter = ads._adapter
+	ads._adapter = spy
+	save.set_setting("ads_preview", true)
+	save.data.ads.consent = "denied"
+	ads.policy.lifetime_rounds = 50
+	for i in 10:
+		ads.policy.on_round_finished()
+	ads._clock += 10000.0
+	# Leaving a night from the pause menu: no ad.
+	game.pause()
+	await frames(2)
+	game._to_menu(false)
+	await frames(2)
+	assert_eq(spy.interstitials, 0, "never when a night is abandoned")
+	game.queue_free()
+	await frames(2)
+	game = load("res://scenes/gameplay/echo_game.tscn").instantiate()
+	add_child(game)
+	await frames(2)
+	# A finished night -> "Nochmal": the capped interstitial may appear first.
+	game.state = "results"
+	game._on_again()
+	await frames(3)
+	assert_eq(spy.interstitials, 1, "one interstitial at the natural break")
+	assert_eq(game.state, "play", "then the next night starts")
+	ads._adapter = old_adapter
+	save.set_setting("ads_preview", false)
+	spy.free()
+
+
+func test_a_lent_paper_is_worn_for_exactly_one_night() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	save.data["paper_trial"] = "gold"
+	game.new_round()
+	assert_eq(game.view._paper, Progression.PAPERS["gold"].paper, "the lent paper lights this night")
+	game.sim.core_hp = 1
+	game.sim.state = "between"
+	game.sim.last_run = {"destroyed": 0, "leaked": 1, "points": 0}
+	game.sim.bank()  # the night ends
+	await frames(2)
+	assert_eq(str(save.data.paper_trial), "", "and is returned afterwards")
+	game.new_round()
+	assert_ne(game.view._paper, Progression.PAPERS["gold"].paper, "next night: the own paper again")
