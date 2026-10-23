@@ -33,6 +33,7 @@ var mode_button: Button
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	cfg = Config.load_balance("lunte")
 	tracker = PointerTracker.new()
 	tracker.name = "Tracker"
@@ -61,7 +62,7 @@ func _build_hud() -> void:
 	over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_label.visible = false
 	hud = Control.new()
-	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.draw.connect(_draw_hud)
 	layer.add_child(hud)
@@ -311,3 +312,8 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		if sim and sim.fuses.size() > 0 and sim.fuses[0].lit and not sim.over:
 			paused = true
+
+
+func on_back() -> bool:
+	get_tree().change_scene_to_file("res://prototypes/lab.tscn")
+	return true

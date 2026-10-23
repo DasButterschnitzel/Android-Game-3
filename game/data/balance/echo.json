@@ -2,7 +2,14 @@
   "_comment": "NACHHALL rules (production ECHO). px on the 720-wide base viewport, seconds. See docs/GAME_DESIGN.md.",
   "run_seconds": 8.0,
   "max_lights": 6,
-  "light_multipliers": [6.0, 4.0, 3.0, 2.0, 1.5, 1.0],
+  "light_multipliers": [
+    6.0,
+    4.0,
+    3.0,
+    2.0,
+    1.5,
+    1.0
+  ],
   "core_lives": 3,
   "core_y": 0.36,
   "core_radius": 44.0,
@@ -21,12 +28,64 @@
   "teach_speed": 150.0,
   "teach_arrival": 2.0,
   "dawn_bonus_per_life": 100,
-  "points": {"normal": 10, "twin": 15, "armor": 25},
+  "points": {
+    "normal": 10,
+    "twin": 15,
+    "armor": 25
+  },
   "waves": [
-    {"teach": true},
-    {"normal": 4},
-    {"normal": 4, "twins": 1, "announce": "twins"},
-    {"normal": 4, "twins": 1, "armor": 1, "announce": "armor"},
-    {"normal": 5, "twins": 1, "armor": 2}
-  ]
+    {
+      "teach": true
+    },
+    {
+      "normal": 4
+    },
+    {
+      "normal": 4,
+      "twins": 1,
+      "announce": "twins"
+    },
+    {
+      "normal": 4,
+      "twins": 1,
+      "armor": 1,
+      "announce": "armor"
+    },
+    {
+      "normal": 5,
+      "twins": 1,
+      "armor": 2
+    }
+  ],
+  "modes": {
+    "fullmoon": {
+      "_comment": "Vollmond: unlocked after the first dawn. Faster ghosts, denser waves, tighter twin window.",
+      "enemy_speed": 135.0,
+      "twin_window": 0.5,
+      "waves": [
+        {
+          "teach": true
+        },
+        {
+          "normal": 5
+        },
+        {
+          "normal": 4,
+          "twins": 1,
+          "armor": 1,
+          "announce": "twins"
+        },
+        {
+          "normal": 5,
+          "twins": 1,
+          "armor": 2
+        },
+        {
+          "normal": 6,
+          "twins": 2,
+          "armor": 2
+        }
+      ]
+    }
+  }
 }

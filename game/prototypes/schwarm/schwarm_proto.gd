@@ -25,6 +25,7 @@ const COL_PLANKTON := Color("#b8ff7a")
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	cfg = Config.load_balance("schwarm")
 	tracker = PointerTracker.new()
 	add_child(tracker)
@@ -184,3 +185,8 @@ func _on_game_over(score: int) -> void:
 	over_label.text = "Gefressen!\n%d Punkte\nBestwert %d\nmax. Schwarm %d · Zeit %d s\n\nTippen für neue Runde" % [score, best, sim.stats.max_fish, int(sim.time)]
 	over_label.visible = true
 	tracker.cancel_all()
+
+
+func on_back() -> bool:
+	get_tree().change_scene_to_file("res://prototypes/lab.tscn")
+	return true

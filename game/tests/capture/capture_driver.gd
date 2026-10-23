@@ -27,9 +27,17 @@ func _ready() -> void:
 	if "seed_override" in game:
 		game.seed_override = seed_value
 	add_child(game)
+	for a in OS.get_cmdline_user_args():
+		match a:
+			"open=collection":
+				game.add_child(CollectionPanel.new())
+			"open=settings":
+				game.add_child(SettingsMenu.new())
 
 
 func _physics_process(dt: float) -> void:
+	if not ("sim" in game):
+		return  # static screens (menus, panels): just record
 	if game.sim is EchoSim:
 		_drive_echo(dt)
 		return

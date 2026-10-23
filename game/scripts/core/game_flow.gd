@@ -16,7 +16,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rect = ColorRect.new()
 	_rect.color = Color(0.03, 0.03, 0.08, 0.0)
-	_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_rect)
 
@@ -42,3 +42,31 @@ func go(path: String) -> void:
 
 func is_busy() -> bool:
 	return _busy
+
+
+## Android back button / gesture (and Escape on desktop). The topmost visible
+## node in group "back_handler" whose on_back() returns true consumes it.
+## project setting application/config/quit_on_go_back is off, so leaving the
+## app is an explicit decision of the main menu, never an accident mid-run.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		handle_back()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		handle_back()
+
+
+func handle_back() -> bool:
+	if _busy:
+		return true
+	var handlers := get_tree().get_nodes_in_group("back_handler")
+	for i in range(handlers.size() - 1, -1, -1):
+		var h: Node = handlers[i]
+		if h is CanvasItem and not (h as CanvasItem).is_visible_in_tree():
+			continue
+		if h.has_method("on_back") and h.on_back():
+			return true
+	return false

@@ -78,3 +78,14 @@ Reproduzieren:
 - Mit Flammen als knapper Ressource liegt **perfect jetzt leicht vor early** (≈ 9 %), dafür ist early schneller.
   Bei Menschen mit Fehlern dürfte frühes Kassieren attraktiver sein; Gerätetest beobachten.
 - Das Bot-Tempo wirkt kaum (± 5 %): Die Erholzeit, nicht die Motorik, begrenzt ein einzelnes Licht.
+
+### Modus „Vollmond“ (0.5-Vorbereitung, `modes.fullmoon` in `echo.json`)
+Schnellere Geister (135 statt 120 px/s), Zwillingsfenster 0,5 s, dichtere Wellen (5/6/8/10/12 Schatten).
+Seeds 7000–7029, 600 px/s:
+
+| perfect | early | sector | solo | chaser | Morgengrauen perfect / early | Rundenlänge Planer | Zwillinge |
+|---|---|---|---|---|---|---|---|
+| 1.553 | 1.400 | 595 | 600 | 425 | 93 % / 67 % | 93–111 s | 92–93 % |
+
+Alle Kriterien bestanden (E1 0,386 · C1 0,274 · T1 100 % · T2 92 % · L1). Deutlich schwerer: frühes Kassieren
+erreicht nur noch in zwei Dritteln der Nächte das Morgengrauen.

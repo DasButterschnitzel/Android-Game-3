@@ -21,8 +21,9 @@ func _ready() -> void:
 		set_process(false)
 		SmokeTest.run.call_deferred(get_tree())
 		return
+	add_to_group("back_handler")
 	theme = UiTheme.get_theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var world := Node2D.new()
 	add_child(world)
 	_view = EchoView.new()
@@ -30,11 +31,11 @@ func _ready() -> void:
 	_new_demo()
 	var shade := ColorRect.new()
 	shade.color = Color(0.02, 0.02, 0.07, 0.45)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.offset_top = 120
 	add_child(box)
@@ -52,19 +53,31 @@ func _ready() -> void:
 	box.add_child(spacer)
 	var play := UiTheme.primary_button("Spielen")
 	play.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play.pressed.connect(func(): _start(false))
+	play.pressed.connect(func(): _start(false, ""))
 	box.add_child(play)
 	var daily := UiTheme.button(_daily_text())
 	daily.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	daily.pressed.connect(func(): _start(true))
+	daily.pressed.connect(func(): _start(true, ""))
 	box.add_child(daily)
+	# Harder mode, unlocked by surviving one night (a goal, not a purchase).
+	var moon_open: bool = save != null and save.data.unlocks.has("dawn")
+	var moon := UiTheme.button("Vollmond" if moon_open else "Vollmond · nach dem ersten Morgengrauen")
+	moon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	moon.disabled = not moon_open
+	if not moon_open:
+		moon.add_theme_font_size_override("font_size", 22)
+	moon.pressed.connect(func(): _start(false, "fullmoon"))
+	box.add_child(moon)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(row)
-	var settings := UiTheme.button("Einstellungen", Vector2(260, 80))
+	var collection := UiTheme.button("Sternbilder", Vector2(230, 80))
+	collection.pressed.connect(func(): add_child(CollectionPanel.new()))
+	row.add_child(collection)
+	var settings := UiTheme.button("Einstellungen", Vector2(230, 80))
 	settings.pressed.connect(func(): add_child(SettingsMenu.new()))
 	row.add_child(settings)
-	var credits := UiTheme.button("Credits", Vector2(200, 80))
+	var credits := UiTheme.button("Credits", Vector2(170, 80))
 	credits.pressed.connect(func(): add_child(CreditsPanel.new()))
 	row.add_child(credits)
 	if OS.is_debug_build():
@@ -92,10 +105,11 @@ func _new_demo() -> void:
 	_view.setup(_demo, int(Time.get_unix_time_from_system()) / 86400)
 
 
-func _start(daily: bool) -> void:
+func _start(daily: bool, mode: String) -> void:
 	var save := _save()
 	if save:
 		save.data["pending_daily"] = daily
+		save.data["pending_mode"] = mode
 	_go(GAME_SCENE)
 
 
@@ -157,3 +171,9 @@ func _ellipse(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
 		var a := TAU * i / 24.0
 		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
+
+
+## Android back on the main menu leaves the app (overlays above it close first).
+func on_back() -> bool:
+	get_tree().quit()
+	return true

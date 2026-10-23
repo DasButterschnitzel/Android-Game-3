@@ -52,7 +52,8 @@ var state := "ready"  # ready | running | between | over
 var core_hp: int
 var score := 0
 var last_run := {"destroyed": 0, "leaked": 0, "points": 0}
-var stats := {"runs": 0, "waves_banked": 0, "perfect_waves": 0, "leaks": 0, "strikes": 0, "lights": 0, "dawn": false}
+var stats := {"runs": 0, "waves_banked": 0, "perfect_waves": 0, "leaks": 0, "strikes": 0, "lights": 0, "dawn": false,
+	"solo_perfect": 0, "echo_perfect": 0, "duo_runs": 0}
 var _cursor: PackedInt32Array = PackedInt32Array()  # next strike index per echo
 ## Look-ahead copies (see fork) run the echoes only, without live lights.
 var probe := false
@@ -263,6 +264,8 @@ func add_live_light(pos: Vector2) -> int:
 	if state != "running" or lights_used() >= int(cfg.max_lights):
 		return -1
 	_add_light(_clamp_arena(pos))
+	if live.size() == 2:
+		stats.duo_runs += 1
 	return live.size() - 1
 
 
@@ -446,6 +449,10 @@ func bank() -> void:
 	stats.waves_banked += 1
 	if last_run.leaked == 0:
 		stats.perfect_waves += 1
+		if echoes.size() == 1:
+			stats.solo_perfect += 1
+		else:
+			stats.echo_perfect += 1
 	wave_banked.emit(wave_index, pts, last_run.leaked)
 	if core_hp <= 0:
 		core_hp = 0

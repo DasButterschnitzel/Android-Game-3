@@ -31,6 +31,7 @@ static func defaults() -> Dictionary:
 			"left_handed": false,
 			"second_finger": true,  # a second finger lights a second light
 			"sensitivity": 1.0,  # relative control gain factor: 0.75 low, 1.0 normal, 1.3 high
+			"lantern_paper": "classic",  # cosmetic, see Progression.PAPERS
 		},
 		"stats": {
 			"best_score": 0,
@@ -40,6 +41,7 @@ static func defaults() -> Dictionary:
 			"perfect_waves": 0,
 			"lights": 0,
 			"play_seconds": 0.0,
+			"best_fullmoon": 0,  # best score in the "Vollmond" mode
 		},
 		"daily": {
 			"date": "",  # YYYY-MM-DD of the last daily night played
@@ -52,6 +54,7 @@ static func defaults() -> Dictionary:
 		"unlocks": {},
 		"onboarding": {},  # hint key -> true once shown
 		"pending_daily": false,
+		"pending_mode": "",  # "" normal night, "fullmoon"
 		"ads": {
 			"consent": "unknown",  # unknown | granted | denied | not_required
 			"rounds_since_interstitial": 0,
@@ -164,7 +167,7 @@ func set_setting(key: String, value: Variant) -> void:
 
 ## Records a finished NACHHALL round; returns true if it is a new best score.
 ## Daily nights also keep their own best for the day.
-func record_echo_round(score: int, round_stats: Dictionary, duration: float, daily := false) -> bool:
+func record_echo_round(score: int, round_stats: Dictionary, duration: float, daily := false, mode := "") -> bool:
 	var s: Dictionary = data.stats
 	s.rounds_played += 1
 	s.waves_banked += int(round_stats.get("waves_banked", 0))
@@ -173,9 +176,15 @@ func record_echo_round(score: int, round_stats: Dictionary, duration: float, dai
 	s.play_seconds += duration
 	if round_stats.get("dawn", false):
 		s.dawns += 1
-	var is_best: bool = score > s.best_score
-	if is_best:
-		s.best_score = score
+	var is_best := false
+	if mode == "fullmoon":
+		is_best = score > int(s.best_fullmoon)
+		if is_best:
+			s.best_fullmoon = score
+	else:
+		is_best = score > s.best_score
+		if is_best:
+			s.best_score = score
 	if daily:
 		var today := Time.get_date_string_from_system()
 		var d: Dictionary = data.daily

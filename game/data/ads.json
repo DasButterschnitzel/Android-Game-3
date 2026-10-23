@@ -1,0 +1,18 @@
+{
+  "_comment": "Ad configuration. adapter: none | mock | admob. Real ad unit IDs only after the owner's approval; the admob ids below are Google's public TEST ids.",
+  "adapter_debug": "mock",
+  "adapter_release": "none",
+  "interstitials_enabled": true,
+  "rewarded_enabled": false,
+  "min_rounds_before_first": 3,
+  "rounds_between": 4,
+  "min_seconds_between": 180.0,
+  "min_lifetime_rounds": 5,
+  "consent_after_rounds": 2,
+  "mock_close_after": 2.0,
+  "admob_test_ids": {
+    "app_id": "ca-app-pub-3940256099942544~3347511713",
+    "interstitial": "ca-app-pub-3940256099942544/1033173712",
+    "rewarded": "ca-app-pub-3940256099942544/5224354917"
+  }
+}

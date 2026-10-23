@@ -10,7 +10,9 @@ extends RefCounted
 var min_rounds_before_first := 3
 var rounds_between := 4
 var min_seconds_between := 180.0
+var min_lifetime_rounds := 5  # brand-new players get their first nights ad-free
 var enabled := true
+var lifetime_rounds := 0  # finished nights ever (from the save), set by the caller
 
 var _rounds_since_last := 0
 var _rounds_this_session := 0
@@ -21,6 +23,7 @@ func configure(cfg: Dictionary) -> void:
 	min_rounds_before_first = int(cfg.get("min_rounds_before_first", min_rounds_before_first))
 	rounds_between = int(cfg.get("rounds_between", rounds_between))
 	min_seconds_between = float(cfg.get("min_seconds_between", min_seconds_between))
+	min_lifetime_rounds = int(cfg.get("min_lifetime_rounds", min_lifetime_rounds))
 	enabled = bool(cfg.get("interstitials_enabled", enabled))
 
 
@@ -28,12 +31,15 @@ func configure(cfg: Dictionary) -> void:
 func on_round_finished() -> void:
 	_rounds_since_last += 1
 	_rounds_this_session += 1
+	lifetime_rounds += 1
 
 
 ## Natural break check, e.g. when the player leaves the results screen.
 ## consent_ready: the consent flow has completed (granted or not).
 func should_show_interstitial(now_sec: float, consent_ready: bool) -> bool:
 	if not enabled or not consent_ready:
+		return false
+	if lifetime_rounds < min_lifetime_rounds:
 		return false
 	if _rounds_this_session < min_rounds_before_first:
 		return false

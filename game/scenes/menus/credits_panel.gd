@@ -5,15 +5,16 @@ extends Control
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	theme = UiTheme.get_theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var bg := ColorRect.new()
 	bg.color = UiTheme.BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.offset_left = 32
 	box.offset_right = -32
 	box.offset_top = 80
@@ -39,3 +40,9 @@ func _ready() -> void:
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(queue_free)
 	box.add_child(back)
+
+
+## Android back closes the panel.
+func on_back() -> bool:
+	queue_free()
+	return true

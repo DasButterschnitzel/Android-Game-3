@@ -11,15 +11,16 @@ const CONTROL_NAMES := {"direct": "LUNTE-Labor: direkt", "offset": "LUNTE-Labor:
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	theme = UiTheme.get_theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(UiTheme.BG, 0.96)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 32
 	scroll.offset_right = -32
 	scroll.offset_top = 80
@@ -140,3 +141,10 @@ func _audio_changed() -> void:
 func _show_privacy() -> void:
 	var p := PrivacyPanel.new()
 	add_child(p)
+
+
+## Android back closes the settings like "Fertig".
+func on_back() -> bool:
+	closed.emit()
+	queue_free()
+	return true

@@ -38,6 +38,7 @@ func _save() -> SaveStore:
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	cfg = Config.load_balance("lunte")
 	var save := _save()
 	if save:
@@ -303,7 +304,7 @@ func _show_results(score: int, is_best: bool) -> void:
 	var save := _save()
 	var o := VBoxContainer.new()
 	o.theme = UiTheme.get_theme()
-	o.set_anchors_preset(Control.PRESET_FULL_RECT)
+	o.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	o.alignment = BoxContainer.ALIGNMENT_CENTER
 	o.offset_left = 40
 	o.offset_right = -40
@@ -362,11 +363,11 @@ func pause() -> void:
 	_close_overlay()
 	var o := VBoxContainer.new()
 	o.theme = UiTheme.get_theme()
-	o.set_anchors_preset(Control.PRESET_FULL_RECT)
+	o.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	o.alignment = BoxContainer.ALIGNMENT_CENTER
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(dim)
 	o.add_child(UiTheme.label("Pause", 56, UiTheme.TEXT, true))
@@ -418,3 +419,12 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT:
 			if state == "playing":
 				pause()
+
+
+## Android back: pause while playing, otherwise back to the menu.
+func on_back() -> bool:
+	if state in ["ready", "playing"]:
+		pause()
+	else:
+		_to_menu()
+	return true

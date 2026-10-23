@@ -23,7 +23,7 @@ var _mult_pop := 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pause = Button.new()
 	_pause.text = "II"
@@ -64,7 +64,10 @@ func wave_banner(wave: int, total: int, tag: String) -> void:
 
 func _process(delta: float) -> void:
 	# Parent is a CanvasLayer, so size from the viewport (anchors may not be resolved yet).
-	size = get_viewport_rect().size
+	# The whole HUD moves below a camera cut-out (safe area).
+	var inset := SafeArea.top(get_viewport())
+	position = Vector2(0, inset)
+	size = get_viewport_rect().size - Vector2(0, inset)
 	_pause.position = Vector2(size.x - 100, 24)
 	_hint_time = maxf(_hint_time - delta, 0.0)
 	_hint_label.position = Vector2(30, 170)
@@ -123,7 +126,7 @@ func _draw() -> void:
 	_draw_state_text()
 	if _banner_time > 0.0:
 		var a := clampf(minf(_banner_time, 2.2 - _banner_time) * 3.0, 0.0, 1.0)
-		var y := sim.core.y + 160
+		var y := sim.core.y + 160 - position.y
 		var grow := int((1.0 - clampf((2.2 - _banner_time) * 5.0, 0.0, 1.0)) * 16.0)  # settles into place
 		_centered(bold, _banner, y, 46 + grow, Color(UiTheme.TEXT, a), size.x)
 		if _banner_sub != "":
@@ -132,7 +135,7 @@ func _draw() -> void:
 
 ## Run timeline: progress, ghost arrivals (below), echo strikes (above).
 func _draw_timeline() -> void:
-	var y := sim.arena.position.y - 16.0
+	var y := sim.arena.position.y - 16.0 - position.y
 	var x0 := 28.0
 	var w := size.x - 56.0
 	var rt := float(sim.run_ticks())
@@ -160,7 +163,7 @@ func _draw_timeline() -> void:
 ## Guidance next to the start ring between runs.
 func _draw_state_text() -> void:
 	var med: Font = UiTheme.FONT_MEDIUM
-	var y := sim.start_pos.y + float(sim.cfg.start_ring) + 44
+	var y := sim.start_pos.y + float(sim.cfg.start_ring) + 44 - position.y
 	match sim.state:
 		"ready":
 			_centered(med, "Zieh das Licht aus dem Ring", y, 26, Color(UiTheme.TEXT, 0.8), size.x)

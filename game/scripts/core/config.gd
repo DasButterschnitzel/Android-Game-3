@@ -22,3 +22,15 @@ static func with_overrides(base: Dictionary, overrides: Dictionary) -> Dictionar
 	for k in overrides:
 		out[k] = overrides[k]
 	return out
+
+
+## Balance of a game mode: the base file with modes/<mode> applied on top
+## ("" or an unknown mode returns the base unchanged).
+static func load_mode(name: String, mode: String) -> Dictionary:
+	var base := load_balance(name)
+	var modes: Dictionary = base.get("modes", {})
+	if mode == "" or not modes.has(mode):
+		return base
+	var over: Dictionary = modes[mode].duplicate(true)
+	over.erase("_comment")
+	return with_overrides(base, over)

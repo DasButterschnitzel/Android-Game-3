@@ -33,6 +33,8 @@ var sensitivity := 1.0  # player setting, scales relative_gain
 var second_finger := true
 var seed_override := -1  # tests/captures: reproducible rounds
 var daily := false  # same seed for everyone today
+var mode := ""  # "" normal night, "fullmoon"
+var earned: Array[String] = []  # achievements of the last finished night
 var round_index := 0
 var round_seed := 0
 var ready_pos: Vector2  # the light inside its start ring before a run
@@ -54,14 +56,17 @@ func _save() -> SaveStore:
 
 
 func _ready() -> void:
-	cfg = Config.load_balance("echo")
+	add_to_group("back_handler")
 	var save := _save()
+	if save:
+		daily = bool(save.data.get("pending_daily", false))
+		mode = "" if daily else str(save.data.get("pending_mode", ""))
+	cfg = Config.load_mode("echo", mode)
 	if save:
 		effects = float(save.get_setting("effects"))
 		sensitivity = float(save.get_setting("sensitivity"))
 		second_finger = bool(save.get_setting("second_finger"))
 		Haptics.enabled = bool(save.get_setting("haptics"))
-		daily = bool(save.data.get("pending_daily", false))
 	tracker = PointerTracker.new()
 	tracker.name = "Tracker"
 	add_child(tracker)
@@ -102,7 +107,8 @@ func _ready() -> void:
 func arena() -> Rect2:
 	var vr := get_viewport_rect()
 	var w := minf(700.0, vr.size.x - 20.0)
-	var top := 150.0 + maxf(0.0, (vr.size.y - 1280.0) * 0.5)
+	# Below the HUD and any camera cut-out; extra height of tall phones is split.
+	var top := maxf(150.0 + SafeArea.top(get_viewport()), 150.0 + maxf(0.0, (vr.size.y - 1280.0) * 0.5))
 	return Rect2(vr.position.x + (vr.size.x - w) * 0.5, vr.position.y + top, w, 1110.0)
 
 
@@ -120,7 +126,9 @@ func new_round() -> void:
 	view.setup(sim, round_seed)
 	hud.sim = sim
 	var save := _save()
-	hud.best = save.data.stats.best_score if save else 0
+	hud.best = _best(save)
+	if save:
+		view.set_paper(str(save.get_setting("lantern_paper")))
 	audio.attach(sim)
 	fx.clear()
 	_reset_input()
@@ -194,6 +202,7 @@ func _process(delta: float) -> void:
 	fx.position = off
 	view.ready_pos = ready_pos
 	view.targets = targets
+	view.score_anchor = Vector2(110, 60 + hud.position.y)
 	_update_bank_button()
 
 
@@ -340,7 +349,7 @@ func _update_bank_button() -> void:
 		bank_button.text += "  (−%d %s)" % [leaked, "Flamme" if leaked == 1 else "Flammen"]
 	var vr := get_viewport_rect()
 	bank_button.size = Vector2(minf(560.0, vr.size.x - 60.0), 96)
-	bank_button.position = Vector2((vr.size.x - bank_button.size.x) * 0.5, vr.size.y - 150)
+	bank_button.position = Vector2((vr.size.x - bank_button.size.x) * 0.5, vr.size.y - 150 - SafeArea.bottom(get_viewport()))
 
 
 func _on_struck(light_id: int, pos: Vector2, hits: int, is_echo: bool) -> void:
@@ -381,7 +390,7 @@ func _on_banked(_w: int, pts: int, leaked: int) -> void:
 	_bank_timer = -1.0
 	# Banked points fly from the lantern to the score and pop up there.
 	view.fly_points(sim.core, pts / 25, UiTheme.ACCENT)
-	view.popup(Vector2(130, 170), "+%d" % pts, UiTheme.ACCENT, 44)
+	view.popup(Vector2(130, 170 + hud.position.y), "+%d" % pts, UiTheme.ACCENT, 44)
 	if leaked > 0:
 		view.popup(sim.core + Vector2(0, 104), "−%d %s" % [leaked, "Flamme" if leaked == 1 else "Flammen"], UiTheme.DANGER, 32)
 	Haptics.bump()
@@ -391,7 +400,13 @@ func _on_game_over(score: int, survived: bool) -> void:
 	var save := _save()
 	var is_best := false
 	if save:
-		is_best = save.record_echo_round(score, sim.stats, _round_time, daily)
+		is_best = save.record_echo_round(score, sim.stats, _round_time, daily, mode)
+		earned = Progression.evaluate({
+			"score": score, "survived": survived, "flames_left": sim.core_hp,
+			"solo_perfect": int(sim.stats.solo_perfect) > 0, "echo_perfect": int(sim.stats.echo_perfect) > 0,
+			"daily": daily, "duo": int(sim.stats.duo_runs) > 0,
+		}, save.data.stats, save.data.unlocks)
+		save.mark_dirty("unlocks")
 	state = "results"
 	_reset_input()
 	_bank_timer = -1.0
@@ -399,6 +414,12 @@ func _on_game_over(score: int, survived: bool) -> void:
 	audio.round_over(survived)
 	round_finished.emit(score, is_best)
 	_show_results(score, is_best, survived)
+
+
+func _best(save: SaveStore) -> int:
+	if save == null:
+		return 0
+	return int(save.data.stats.best_fullmoon) if mode == "fullmoon" else int(save.data.stats.best_score)
 
 
 static func _fmt_mult(m: float) -> String:
@@ -420,12 +441,12 @@ func _panel_box() -> VBoxContainer:
 	_close_overlay()
 	_dim = ColorRect.new()
 	_dim.color = Color(0.02, 0.02, 0.06, 0.62)
-	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(_dim)
 	var o := VBoxContainer.new()
 	o.theme = UiTheme.get_theme()
-	o.set_anchors_preset(Control.PRESET_FULL_RECT)
+	o.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	o.alignment = BoxContainer.ALIGNMENT_CENTER
 	o.offset_left = 40
 	o.offset_right = -40
@@ -447,14 +468,21 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	if is_best:
 		o.add_child(UiTheme.label("Neuer Bestwert!", 36, UiTheme.GOOD, true))
 	else:
-		o.add_child(UiTheme.label("Bestwert %s" % EchoHud.fmt(save.data.stats.best_score if save else score), 30, UiTheme.TEXT_DIM))
+		o.add_child(UiTheme.label("Bestwert %s" % EchoHud.fmt(_best(save) if save else score), 30, UiTheme.TEXT_DIM))
 	var st: Dictionary = sim.stats
 	var lines := "%d von %d Wellen · %d perfekt\n%d Lichter · %d s" % [st.waves_banked, sim.waves_per_round(), st.perfect_waves, st.lights, int(_round_time)]
 	if survived:
 		lines += "\nFlammen am Morgen: %d (+%d)" % [sim.core_hp, sim.dawn_bonus()]
 	if daily:
 		lines = "Tagesnacht\n" + lines
+	elif mode == "fullmoon":
+		lines = "Vollmond\n" + lines
 	o.add_child(UiTheme.label(lines, 26, UiTheme.TEXT_DIM, true))
+	for id in earned:
+		var a: Dictionary = Progression.ACHIEVEMENTS[id]
+		o.add_child(UiTheme.label("Sternbild: %s" % a.name, 26, UiTheme.ACCENT, true))
+	for pid in Progression.papers_for(earned):
+		o.add_child(UiTheme.label("Neues Laternenpapier: %s" % Progression.PAPERS[pid].name, 24, UiTheme.GOOD, true))
 	var again := UiTheme.primary_button("Nochmal")
 	again.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	again.pressed.connect(_on_again)
@@ -549,6 +577,18 @@ func _reload_settings() -> void:
 	fx.intensity = 0.4 + 0.6 * effects
 	view.effects = effects
 	debug_overlay.visible = bool(save.get_setting("touch_debug"))
+
+
+## Android back: pause during play, resume from pause, menu from results.
+func on_back() -> bool:
+	match state:
+		"play":
+			pause()
+		"paused":
+			resume_play()
+		"results":
+			_to_menu()
+	return true
 
 
 func _notification(what: int) -> void:

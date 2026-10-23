@@ -11,12 +11,13 @@ const PROTOTYPES := [
 
 
 func _ready() -> void:
+	add_to_group("back_handler")
 	var bg := ColorRect.new()
 	bg.color = Color("#0b0d1a")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_theme_constant_override("separation", 28)
 	add_child(box)
@@ -42,3 +43,8 @@ func _ready() -> void:
 		b.pressed.connect(func(): get_tree().change_scene_to_file(path))
 		box.add_child(b)
 	box.add_child(back)
+
+
+func on_back() -> bool:
+	get_tree().change_scene_to_file("res://scenes/menus/main_menu.tscn")
+	return true

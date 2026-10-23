@@ -192,3 +192,28 @@ func test_lost_night_shows_results_and_restarts() -> void:
 	assert_eq(game.state, "play", "new round")
 	assert_eq(game.sim.state, "ready", "fresh night")
 	assert_eq(old.get_ref(), null, "old round freed")
+
+
+func test_android_back_pauses_and_resumes() -> void:
+	var flow := get_node("/root/Flow") as GameFlow
+	start_run_and_release()
+	await physics_frames(3)
+	assert_true(flow.handle_back(), "back is handled, the app does not quit mid-run")
+	assert_eq(game.state, "paused", "back pauses a running night")
+	flow.handle_back()
+	assert_eq(game.state, "play", "back again resumes")
+
+
+func test_hud_and_buttons_respect_the_safe_area() -> void:
+	SafeArea.override = Vector4(0, 60, 0, 40)
+	game.new_round()
+	await frames(3)
+	assert_near(game.hud.position.y, 60.0, 0.01, "HUD below the camera cut-out")
+	assert_true(game.sim.arena.position.y >= 210.0, "field below HUD and cut-out")
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
+	start_run_and_release()
+	await wait_run_end()
+	await frames(2)
+	var r := game.bank_button.get_global_rect()
+	assert_true(r.end.y <= game.get_viewport_rect().size.y - 40.0, "bank button above the gesture bar")
+	SafeArea.override = Vector4(-1, -1, -1, -1)

@@ -14,7 +14,7 @@ const COLORS := [Color("#ff5d5d"), Color("#5dd1ff"), Color("#ffd95d"), Color("#7
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tracker = get_node_or_null(tracker_path)
 	if _tracker:
 		_tracker.pointer_down.connect(func(p): _log("down #%d" % p.id))

@@ -41,6 +41,8 @@ var _skyline: Array[PackedVector2Array] = []
 var _windows: Array = []
 var _glow: Texture2D
 var _font: Font
+var _paper := PAPER  # lantern paper colours (cosmetic unlocks)
+var _rib := PAPER_DARK
 
 
 func _ready() -> void:
@@ -73,6 +75,13 @@ func setup(new_sim: EchoSim, seed_value: int) -> void:
 	_windows.clear()
 	for i in _skyline.size():
 		_windows.append(ArtKit.windows(_skyline[i], seed_value + 17 * i, 0.14))
+
+
+## Cosmetic lantern paper (Progression.PAPERS); unknown ids keep the classic paper.
+func set_paper(id: String) -> void:
+	var p: Dictionary = Progression.PAPERS.get(id, Progression.PAPERS["classic"])
+	_paper = p.paper
+	_rib = p.rib
 
 
 static func enemy_color(type: int) -> Color:
@@ -309,7 +318,7 @@ func _draw_lantern() -> void:
 	var halo := r * 6.0 * warm * flick
 	draw_texture_rect(_glow, Rect2(c - Vector2(halo, halo), Vector2(halo, halo) * 2.0), false, Color(1.0, 0.65, 0.3, 0.42 * warm))
 	var body := _ellipse(c, r * 1.02, r * 1.18, 36)
-	var paper := PAPER.lerp(Color("#6b4a5c"), 1.0 - warm)
+	var paper := _paper.lerp(Color("#6b4a5c"), 1.0 - warm)
 	if _lantern_hit > 0.0:
 		paper = paper.lerp(UiTheme.DANGER, _lantern_hit * 0.6)
 	draw_colored_polygon(body, paper)
@@ -318,8 +327,8 @@ func _draw_lantern() -> void:
 		for i in 13:
 			var a := lerpf(-PI * 0.5, PI * 0.5, i / 12.0)
 			rib.append(c + Vector2(k * r * cos(a), sin(a) * r * 1.16))
-		draw_polyline(rib, Color(PAPER_DARK, 0.55), 2.0, true)
-	draw_polyline(body + PackedVector2Array([body[0]]), Color(PAPER_DARK, 0.9), 2.5, true)
+		draw_polyline(rib, Color(_rib, 0.55), 2.0, true)
+	draw_polyline(body + PackedVector2Array([body[0]]), Color(_rib, 0.9), 2.5, true)
 	draw_rect(Rect2(c + Vector2(-r * 0.55, -r * 1.3), Vector2(r * 1.1, r * 0.2)), Color("#3a2b3f"))
 	draw_rect(Rect2(c + Vector2(-r * 0.45, r * 1.12), Vector2(r * 0.9, r * 0.18)), Color("#3a2b3f"))
 	# Tassel.
