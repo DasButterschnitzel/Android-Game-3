@@ -20,9 +20,28 @@ GODOT_BIN="$TOOLS_DIR/Godot_v${GODOT_VERSION}-${GODOT_FLAVOR}_linux.x86_64"
 
 mkdir -p "$TOOLS_DIR"
 
+# Large downloads over flaky networks (CI saw "HTTP/2 stream was not closed
+# cleanly"): retry with a clean file each time, falling back to HTTP/1.1.
+fetch() {
+  local out="$1" url="$2" i
+  for i in 1 2 3 4 5; do
+    rm -f "$out"
+    if curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 -o "$out" "$url"; then
+      return 0
+    fi
+    rm -f "$out"
+    if curl -fsSL --http1.1 --retry 3 --retry-all-errors --retry-delay 5 -o "$out" "$url"; then
+      return 0
+    fi
+    echo "download failed (attempt $i), retrying in $((i * 10)) s: $url" >&2
+    sleep $((i * 10))
+  done
+  return 1
+}
+
 echo "== Godot ${GODOT_VERSION}-${GODOT_FLAVOR}"
 if [ ! -x "$GODOT_BIN" ]; then
-  curl -fsSL -o "$TOOLS_DIR/godot.zip" "${GODOT_DL}&slug=linux.x86_64.zip"
+  fetch "$TOOLS_DIR/godot.zip" "${GODOT_DL}&slug=linux.x86_64.zip"
   unzip -q -o "$TOOLS_DIR/godot.zip" -d "$TOOLS_DIR"
   rm -f "$TOOLS_DIR/godot.zip"
 fi
@@ -32,7 +51,7 @@ ln -sf "$GODOT_BIN" /usr/local/bin/godot 2>/dev/null || true
 echo "== Export templates"
 if [ ! -f "$TEMPLATE_DIR/android_debug.apk" ]; then
   mkdir -p "$TEMPLATE_DIR"
-  curl -fsSL -o "$TOOLS_DIR/templates.tpz" "${GODOT_DL}&slug=export_templates.tpz"
+  fetch "$TOOLS_DIR/templates.tpz" "${GODOT_DL}&slug=export_templates.tpz"
   unzip -q -o "$TOOLS_DIR/templates.tpz" -d "$TOOLS_DIR/tpl"
   # Keep only what this project needs (Android, Linux x86_64 for tests, Web for previews).
   for f in android_debug.apk android_release.apk android_source.zip version.txt icudt_godot.dat \
@@ -46,7 +65,7 @@ ls "$TEMPLATE_DIR"
 echo "== Android SDK ($ANDROID_SDK)"
 if [ ! -x "$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
   mkdir -p "$ANDROID_SDK/cmdline-tools"
-  curl -fsSL -o "$TOOLS_DIR/cmdtools.zip" "https://dl.google.com/android/repository/$CMDLINE_TOOLS_ZIP"
+  fetch "$TOOLS_DIR/cmdtools.zip" "https://dl.google.com/android/repository/$CMDLINE_TOOLS_ZIP"
   unzip -q -o "$TOOLS_DIR/cmdtools.zip" -d "$TOOLS_DIR/cmdtmp"
   rm -rf "$ANDROID_SDK/cmdline-tools/latest"
   mv "$TOOLS_DIR/cmdtmp/cmdline-tools" "$ANDROID_SDK/cmdline-tools/latest"

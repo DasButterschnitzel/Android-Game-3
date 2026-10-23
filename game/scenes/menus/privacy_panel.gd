@@ -7,7 +7,7 @@ const TEXT := """Dieses Spiel funktioniert vollständig offline und ohne Konto.
 
 Gespeichert wird nur lokal auf deinem Gerät: Einstellungen, Bestwerte und Freischaltungen. Diese Daten verlassen dein Gerät nicht.
 
-Werbung: Diese Testversion enthält nur Platzhalter-Werbung ohne Netzwerkverbindung. Eine spätere Version kann Werbung eines Werbenetzwerks anzeigen; dann wirst du vorher um deine Einwilligung gebeten (z. B. für personalisierte Werbung) und kannst sie hier jederzeit ändern.
+Werbung: Diese Version enthält keine Werbung und hat keine Internet-Berechtigung. Eine spätere Version kann Werbung eines Werbenetzwerks anzeigen; dann wirst du vorher um deine Einwilligung gebeten (z. B. für personalisierte Werbung) und kannst sie hier jederzeit ändern.
 
 Keine Käufe, keine Echtgeld-Währung, keine Energie-Sperren."""
 
@@ -32,13 +32,12 @@ func _ready() -> void:
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(body)
-	var consent := UiTheme.button("Werbe-Einwilligung ändern")
-	consent.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	consent.pressed.connect(func():
-		var ads := get_node_or_null("/root/Ads")
-		if ads and ads.has_method("show_consent_form"):
-			ads.show_consent_form())
-	box.add_child(consent)
+	var ads := get_node_or_null("/root/Ads")
+	if ads and ads.has_method("show_consent_form"):  # only when an ad service exists
+		var consent := UiTheme.button("Werbe-Einwilligung ändern")
+		consent.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		consent.pressed.connect(func(): ads.show_consent_form())
+		box.add_child(consent)
 	var back := UiTheme.primary_button("Zurück")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(queue_free)

@@ -29,6 +29,7 @@ var bank_button: Button
 
 var state := "play"  # play | paused | results
 var effects := 1.0
+var sensitivity := 1.0  # player setting, scales relative_gain
 var second_finger := true
 var seed_override := -1  # tests/captures: reproducible rounds
 var daily := false  # same seed for everyone today
@@ -44,6 +45,7 @@ var _bank_timer := -1.0
 var _overlay: Control
 var _dim: ColorRect
 var _round_time := 0.0
+var _freeze := 0  # physics frames of hit-stop left (the sim just waits; replays stay exact)
 var again_button: Button  # results screen, for tests and captures
 
 
@@ -56,6 +58,7 @@ func _ready() -> void:
 	var save := _save()
 	if save:
 		effects = float(save.get_setting("effects"))
+		sensitivity = float(save.get_setting("sensitivity"))
 		second_finger = bool(save.get_setting("second_finger"))
 		Haptics.enabled = bool(save.get_setting("haptics"))
 		daily = bool(save.data.get("pending_daily", false))
@@ -137,15 +140,19 @@ func _connect_sim() -> void:
 	sim.enemy_destroyed.connect(_on_destroyed)
 	sim.enemy_hit.connect(func(e, _id):
 		fx.emit_burst(e.pos, 10, Color.WHITE, 40, 160, 0.35, 3.0)
+		if e.spec.type == EchoSim.Type.ARMOR:
+			fx.emit_burst(e.pos, 16, EchoView.enemy_color(EchoSim.Type.ARMOR), 90, 260, 0.6, 4.0)  # plates fly off
 		view.flash_enemy(e.spec.id))
 	sim.enemy_leaked.connect(_on_leaked)
 	sim.run_started.connect(func(_i):
 		onboarding.run_started(sim)
-		view.run_started())
+		view.run_started()
+		view.shockwave(sim.start_pos, EchoView.LIVE_COL, 110.0))
 	sim.run_ended.connect(func(_i, _d, _l): _after_run.call_deferred())
 	sim.wave_banked.connect(_on_banked)
 	sim.wave_started.connect(func(w):
 		ready_pos = sim.start_pos
+		view.wave_started()
 		var tag := str(sim.wave_def.get("announce", ""))
 		hud.wave_banner(w, sim.waves_per_round(), tag)
 		onboarding.wave_started(sim))
@@ -158,12 +165,16 @@ func _physics_process(delta: float) -> void:
 	if state != "play" or sim.state != "running":
 		return
 	_round_time += delta
+	if _freeze > 0:
+		_freeze -= 1
+		return
 	var deltas: Array = []
 	for k in sim.live.size():
 		var here: Vector2 = sim.live[k].pos
 		var want: Vector2 = targets[k] if k < targets.size() else here
 		deltas.append(want - here)
 	sim.step(deltas)
+	audio.on_step(sim)
 	if sim.state == "running":
 		onboarding.tick(sim)
 
@@ -221,7 +232,7 @@ func _on_down(p: PointerTracker.Pointer) -> void:
 func _on_move(p: PointerTracker.Pointer) -> void:
 	if state != "play":
 		return
-	var d := (p.pos - p.prev_pos) * float(cfg.relative_gain)
+	var d := (p.pos - p.prev_pos) * float(cfg.relative_gain) * sensitivity
 	if _steer.has(p.id):
 		if sim.state == "running":
 			var k: int = _steer[p.id]
@@ -300,6 +311,8 @@ func _after_run() -> void:
 		_bank_timer = PERFECT_BANK_DELAY
 		view.popup(sim.core + Vector2(0, -110), "Perfekt!", UiTheme.GOOD, 44)
 		audio.play_ui("perfect")
+		for c in [EchoView.PAPER, UiTheme.GOOD, EchoView.LIVE_COL]:
+			fx.emit_burst(sim.core, 22, c, 120, 420, 1.1, 3.5)
 	else:
 		view.popup(sim.core + Vector2(0, -110), "%d durch" % lr.leaked, UiTheme.DANGER, 34)
 	onboarding.run_ended(sim)
@@ -313,6 +326,10 @@ func _on_bank_pressed() -> void:
 
 func _update_bank_button() -> void:
 	var show := state == "play" and sim.state == "between" and _bank_timer < 0.0
+	# Very first teaching wave: no banking before the player has seen an echo
+	# once, so the lesson "one light is not enough" cannot be skipped by a tap.
+	if show and sim.wave_index == 0 and sim.echoes.size() == 1 and not onboarding.seen("echo"):
+		show = false
 	bank_button.visible = show
 	if not show:
 		return
@@ -328,17 +345,26 @@ func _update_bank_button() -> void:
 
 func _on_struck(light_id: int, pos: Vector2, hits: int, is_echo: bool) -> void:
 	var col := view.light_color(light_id)
-	view.strike_flash(pos, col, is_echo)
+	view.strike_flash(pos, col, is_echo, -1 if is_echo else light_id - sim.echoes.size())
 	if not is_echo:
 		Haptics.tick()
+		if hits >= 1:
+			# Tiny hit-stop gives the strike weight; scaled by the effects setting.
+			_freeze = int(round((2 if hits == 1 else 4) * effects))
 		if hits >= 2:
 			view.popup(pos + Vector2(0, -46), "Doppelt!", col.lerp(Color.WHITE, 0.5), 30)
 
 
 func _on_destroyed(e: Dictionary, light_id: int) -> void:
 	var col := view.light_color(light_id)
-	fx.emit_burst(e.pos, 26, EchoView.enemy_color(e.spec.type), 40, 220, 0.7, 3.5)
+	var type: int = e.spec.type
+	view.ghost_destroyed(e.pos, EchoView.enemy_color(type), type == EchoSim.Type.ARMOR)
+	fx.emit_burst(e.pos, 26, EchoView.enemy_color(type), 40, 220, 0.7, 3.5)
 	fx.emit_burst(e.pos, 14, col, 60, 260, 0.5, 3.0)
+	if type == EchoSim.Type.TWIN and e.spec.id < e.spec.twin:
+		var partner: Variant = sim._enemy_by_id(e.spec.twin)
+		if partner != null:
+			view.twin_beam(e.pos, partner.pos, EchoView.enemy_color(type))
 	var pts := int(cfg.points[EchoSim.TYPE_KEYS[e.spec.type]])
 	view.popup(e.pos + Vector2(0, -34), "+%d" % pts, col.lerp(Color.WHITE, 0.4), 26)
 	_shake(2.0)
@@ -353,11 +379,11 @@ func _on_leaked(_e: Dictionary) -> void:
 
 func _on_banked(_w: int, pts: int, leaked: int) -> void:
 	_bank_timer = -1.0
-	# Banked points pop up under the score they are added to.
+	# Banked points fly from the lantern to the score and pop up there.
+	view.fly_points(sim.core, pts / 25, UiTheme.ACCENT)
 	view.popup(Vector2(130, 170), "+%d" % pts, UiTheme.ACCENT, 44)
 	if leaked > 0:
 		view.popup(sim.core + Vector2(0, 104), "−%d %s" % [leaked, "Flamme" if leaked == 1 else "Flammen"], UiTheme.DANGER, 32)
-	audio.play_ui("bank")
 	Haptics.bump()
 
 
@@ -412,7 +438,12 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	var save := _save()
 	var o := _panel_box()
 	o.add_child(UiTheme.label("Morgengrauen!" if survived else "Die Laterne ist erloschen", 50, UiTheme.ACCENT if survived else UiTheme.TEXT, true))
-	o.add_child(UiTheme.label(EchoHud.fmt(score), 96, UiTheme.TEXT, true))
+	var score_label := UiTheme.label("0", 96, UiTheme.TEXT, true)
+	o.add_child(score_label)
+	# The score counts up once the panel is visible (tween dies with the label).
+	var count := score_label.create_tween()
+	count.tween_interval(1.0)
+	count.tween_method(func(v: float): score_label.text = EchoHud.fmt(int(v)), 0.0, float(score), 0.8).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	if is_best:
 		o.add_child(UiTheme.label("Neuer Bestwert!", 36, UiTheme.GOOD, true))
 	else:
@@ -513,6 +544,7 @@ func _reload_settings() -> void:
 	if save == null:
 		return
 	effects = float(save.get_setting("effects"))
+	sensitivity = float(save.get_setting("sensitivity"))
 	second_finger = bool(save.get_setting("second_finger"))
 	fx.intensity = 0.4 + 0.6 * effects
 	view.effects = effects

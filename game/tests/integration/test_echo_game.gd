@@ -107,7 +107,21 @@ func test_resting_finger_cannot_start_the_next_run() -> void:
 	touch(0, p, false)
 
 
+func test_first_teaching_wave_cannot_be_banked_before_seeing_an_echo() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	save.data.onboarding.erase("echo")
+	start_run_and_release()
+	await wait_run_end()
+	await frames(2)
+	assert_eq(game.sim.state, "between", "first run over")
+	assert_false(game.bank_button.visible, "no bank button: run again with your echo")
+	save.data.onboarding["echo"] = true
+	await frames(2)
+	assert_true(game.bank_button.visible, "after the echo lesson banking is allowed")
+
+
 func test_bank_button_banks_without_moving_the_light() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
 	start_run_and_release()
 	await wait_run_end()
 	await frames(2)
@@ -157,6 +171,7 @@ func test_pause_freezes_the_run() -> void:
 
 
 func test_lost_night_shows_results_and_restarts() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
 	game.sim.core_hp = 1
 	start_run_and_release()
 	await wait_run_end()

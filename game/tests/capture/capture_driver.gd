@@ -106,7 +106,7 @@ func _drive_echo(dt: float) -> void:
 				return
 			if game._bank_timer >= 0.0 or game._lock > 0.0:
 				return
-			if sim.state == "between" and echo_bot.should_bank():
+			if sim.state == "between" and echo_bot.should_bank() and game.bank_button.visible:
 				wait = 0.9
 				_tap(game.bank_button.get_global_rect().get_center())
 				return

@@ -4,6 +4,34 @@ Alle Builds sind Debug-APKs (Debug-Zertifikat), nicht für den Store bestimmt. �
 automatische Tests, Bot-Simulationen und Linux-Smoke-Test des exportierten Builds. **Kein Build wurde bisher auf
 einem echten Android-Gerät oder Emulator gestartet** (keine KVM-Virtualisierung, kein Gerät in dieser Umgebung).
 
+## 0.3.0 – „Game Feel“ (2026-10-23)
+
+### Neu
+- **Eigener Klangsatz für NACHHALL** (30 Dateien, prozedural, `tools/audio/make_nachhall_audio.py`):
+  Jedes Licht hat eine Stimme der D-Dur-Pentatonik – das lebende Licht als klare Glasglocke, sein Echo als verhallte
+  Erinnerung desselben Tons (Kanon). Tusche-Zerstäuben, Panzer-Riss, Zwillings-Ping und -Klang, Leck, erlöschende
+  Flamme, Lauf-Start, „Licht bereit“, leiser Sekundentakt als hörbare Zeitleiste, Wellen-Glocke, Perfekt, Morgengrauen,
+  Erlöschen der Laterne. Beim Kassieren klingen die Töne aller benutzten Lichter nacheinander.
+- **Animationen und Effekte:** Geister wachsen beim Erscheinen und wippen beim Gehen, zerplatzen in einen Tusche-Ring
+  und hinterlassen verblassende Flecken; Zwillinge verbindet beim Treffen ein Lichtstrahl; Panzerplatten fliegen ab;
+  die Laterne pendelt und schwingt bei Treffern; Lichter ziehen Schweife, Echos kurze Spuren; Startring zieht sich
+  beim Ziehen zusammen; Wellenstart als Glockenschlag-Welle; Punkte fliegen beim Kassieren zur Anzeige;
+  Multiplikator „springt“ bei Änderung; Ergebnis zählt hoch; Konfetti bei perfekten Läufen.
+- **Hit-Stop:** kurzer Mini-Freeze bei Treffern des lebenden Lichts (skaliert mit der Effekt-Einstellung, bei
+  „minimal“ aus). Die Simulation wartet nur – Echos bleiben exakt.
+- **Empfindlichkeit** der Steuerung einstellbar (niedrig/normal/hoch).
+- Erste Lehr-Welle: Kassieren wird erst angeboten, nachdem man einmal ein Echo gesehen hat.
+
+### Behoben
+- Klicks am Ende von Glockenklängen (auch im LUNTE-Satz aus 0.1): Hüllkurven enden jetzt bei null; der
+  Audio-Analysator erkennt isolierte Klicks (neue Regel, kalibriert).
+- Datenschutz-Text im Spiel behauptete Platzhalter-Werbung; korrigiert (diese Version enthält keine Werbung).
+  Der Einwilligungs-Button erscheint erst, wenn es einen Werbedienst gibt.
+- CI: Downloads der Toolchain mit Wiederholung und HTTP/1.1-Rückfall (Lauf #6 scheiterte an einem Netzabbruch).
+
+### Dokumente
+- `GAME_DESIGN.md`, `ARCHITECTURE.md`, `README.md`, `ROADMAP.md`, Compliance-Entwürfe in `docs/compliance/`.
+
 ## 0.2.0 – „Mechanics“ (2026-10-23) · NACHHALL
 
 Erstes APK des eigentlichen Spiels. Paket `io.github.dasbutterschnitzel.nachhall`, Anzeigename „Nachhall“.

@@ -26,12 +26,17 @@ def time_axis(dur: float) -> np.ndarray:
 # --- envelopes ---------------------------------------------------------------
 
 def env_exp(dur: float, decay: float, attack: float = 0.002) -> np.ndarray:
-    """Fast attack, exponential decay (decay = time constant in seconds)."""
+    """Fast attack, exponential decay (decay = time constant in seconds).
+    The last part is tapered to exactly zero: a decay cut off at a few percent
+    amplitude is an audible click once reverb or other layers continue."""
     t = time_axis(dur)
     env = np.exp(-t / max(decay, 1e-4))
     a = n_samples(attack)
     if a > 0:
         env[:a] *= np.linspace(0.0, 1.0, a)
+    k = min(n_samples(min(0.2 * dur, 0.06)), len(env))
+    if k > 1:
+        env[-k:] *= 0.5 * (1 + np.cos(np.linspace(0, np.pi, k)))
     return env
 
 

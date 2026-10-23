@@ -16,6 +16,19 @@ als getestet.** Bots und Simulationen sind keine Menschen.
 | CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Artefakt-Upload |
 | Android-Gerät / Emulator | **nicht verfügbar** (keine KVM, kein Gerät). Gerätetests: `docs/playtests/DEVICE_TEST_PLAN.md` |
 
+## 0.3.0 (2026-10-23)
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Unit- und Integrationstests | `run_tests.gd` | **77 / 77 grün** (neu: erste Lehr-Welle ohne Kassieren vor dem ersten Echo) |
+| Smoke-Test exportierter Build | `tools/smoke_exported.sh` | `SMOKE OK`; Bot-Nacht erreicht das Morgengrauen (1.350 Punkte), keine Engine-/Skriptfehler |
+| Audio-Prüfung | `tools/audio/analyze_audio.py --report docs/audio/AUDIO_REPORT.md` | 61 Dateien, keine Regelverletzung; **neue Klick-Regel** fand Klicks in 15 Dateien (auch LUNTE-Satz aus 0.1) → Ursache behoben, neu erzeugt |
+| Video-Aufnahme 50 s | `tools/capture.sh … echo_game.tscn profile=early seed=11` | Effekte sichtbar (Schweife, Splats, Wellen, Punkteflug), keine Fehler im Log |
+| APK-Build | `tools/build_android.sh game builds/android/nachhall-0.3.0-debug.apk debug` | gebaut, 60.311.945 Bytes, SHA-256 `658f8931…d75a`, Signatur gültig (Debug), Berechtigung nur `VIBRATE` (`docs/builds/nachhall-0.3.0-debug.verify.txt`) |
+
+**Nicht getestet:** alles am Gerät (siehe 0.2.0), insbesondere ob die Klänge auf Handy-Lautsprechern angenehm und
+gut unterscheidbar sind – Klangqualität ist nur objektiv gemessen (Pegel, Klicks, Bassanteil), **nicht angehört**.
+
 ## 0.2.0 (2026-10-23)
 
 | Prüfung | Befehl | Ergebnis |

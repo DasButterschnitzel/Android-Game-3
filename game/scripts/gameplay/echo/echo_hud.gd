@@ -18,6 +18,8 @@ var _hint_time := 0.0
 var _banner := ""
 var _banner_sub := ""
 var _banner_time := 0.0
+var _last_mult := 0.0
+var _mult_pop := 0.0
 
 
 func _ready() -> void:
@@ -75,6 +77,13 @@ func _process(delta: float) -> void:
 			_score_pop = 1.0
 		_shown_score = minf(target, _shown_score + maxf(30.0, (target - _shown_score) * 8.0) * delta) if target > _shown_score else target
 	_score_pop = maxf(_score_pop - delta * 3.0, 0.0)
+	if sim:
+		var lights := sim.lights_used() if sim.state == "running" else sim.echoes.size()
+		var m := sim.multiplier_for(maxi(lights, 1))
+		if m != _last_mult and _last_mult != 0.0:
+			_mult_pop = 1.0
+		_last_mult = m
+	_mult_pop = maxf(_mult_pop - delta * 2.5, 0.0)
 	queue_redraw()
 
 
@@ -101,8 +110,10 @@ func _draw() -> void:
 	var lights := sim.lights_used() if sim.state == "running" else sim.echoes.size()
 	var mult := sim.multiplier_for(maxi(lights, 1))
 	var mx := cx + 70
-	draw_string_outline(bold, Vector2(mx, 64), "×" + EchoGame._fmt_mult(mult), HORIZONTAL_ALIGNMENT_LEFT, -1, 40, 6, shadow)
-	draw_string(bold, Vector2(mx, 64), "×" + EchoGame._fmt_mult(mult), HORIZONTAL_ALIGNMENT_LEFT, -1, 40, UiTheme.ACCENT)
+	var mfs := 40 + int(_mult_pop * 14.0)
+	var mcol := UiTheme.ACCENT.lerp(Color.WHITE, _mult_pop * 0.6)
+	draw_string_outline(bold, Vector2(mx, 64), "×" + EchoGame._fmt_mult(mult), HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, 6, shadow)
+	draw_string(bold, Vector2(mx, 64), "×" + EchoGame._fmt_mult(mult), HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, mcol)
 	var max_l := int(sim.cfg.max_lights)
 	for i in max_l:
 		var used := i < lights
@@ -113,7 +124,8 @@ func _draw() -> void:
 	if _banner_time > 0.0:
 		var a := clampf(minf(_banner_time, 2.2 - _banner_time) * 3.0, 0.0, 1.0)
 		var y := sim.core.y + 160
-		_centered(bold, _banner, y, 46, Color(UiTheme.TEXT, a), size.x)
+		var grow := int((1.0 - clampf((2.2 - _banner_time) * 5.0, 0.0, 1.0)) * 16.0)  # settles into place
+		_centered(bold, _banner, y, 46 + grow, Color(UiTheme.TEXT, a), size.x)
 		if _banner_sub != "":
 			_centered(med, _banner_sub, y + 40, 26, Color(UiTheme.ACCENT, a), size.x - 40)
 

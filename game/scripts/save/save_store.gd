@@ -30,6 +30,7 @@ static func defaults() -> Dictionary:
 			"control_mode": "direct",  # LUNTE lab only: "direct", "offset" or "relative"
 			"left_handed": false,
 			"second_finger": true,  # a second finger lights a second light
+			"sensitivity": 1.0,  # relative control gain factor: 0.75 low, 1.0 normal, 1.3 high
 		},
 		"stats": {
 			"best_score": 0,

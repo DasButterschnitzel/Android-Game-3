@@ -36,6 +36,7 @@ func _ready() -> void:
 	box.add_child(_toggle("Stumm", "muted"))
 	box.add_child(_toggle("Vibration", "haptics"))
 	box.add_child(_effects_row())
+	box.add_child(_sensitivity_row())
 	box.add_child(_toggle("Zweiter Finger = zweites Licht", "second_finger"))
 	box.add_child(_toggle("Touch-Anzeige (Test)", "touch_debug"))
 	if OS.is_debug_build():
@@ -96,6 +97,23 @@ func _effects_row() -> Control:
 		var v := float(_save().get_setting("effects"))
 		var nxt: float = order[(order.find(v) + 1) % order.size()]
 		_save().set_setting("effects", nxt)
+		b.text = names[nxt])
+	return b
+
+
+## How far the light moves per finger movement (bigger phones may want "hoch").
+func _sensitivity_row() -> Control:
+	var b := UiTheme.button("")
+	var names := {0.75: "Empfindlichkeit: niedrig", 1.0: "Empfindlichkeit: normal", 1.3: "Empfindlichkeit: hoch"}
+	var cur := float(_save().get_setting("sensitivity"))
+	b.text = names.get(cur, "Empfindlichkeit: normal")
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.pressed.connect(func():
+		var order := [0.75, 1.0, 1.3]
+		var v := float(_save().get_setting("sensitivity"))
+		var idx := order.find(v)
+		var nxt: float = order[(idx + 1) % order.size()] if idx >= 0 else 1.0
+		_save().set_setting("sensitivity", nxt)
 		b.text = names[nxt])
 	return b
 
