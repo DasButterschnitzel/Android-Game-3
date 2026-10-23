@@ -6,9 +6,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GODOT="${GODOT:-godot}"
 OUT="$ROOT/builds/linux"
 mkdir -p "$OUT"
-"$GODOT" --headless --path "$ROOT/game" --export-debug "LinuxSmoke" "$OUT/pocket.x86_64" > "$OUT/export.log" 2>&1
+"$GODOT" --headless --path "$ROOT/game" --export-debug "LinuxSmoke" "$OUT/nachhall.x86_64" > "$OUT/export.log" 2>&1
 LOG="$OUT/smoke.log"
-timeout 300 "$OUT/pocket.x86_64" --headless -- --smoke > "$LOG" 2>&1 || true
+timeout 300 "$OUT/nachhall.x86_64" --headless --fixed-fps 60 -- --smoke save=smoke_save.json fresh_save > "$LOG" 2>&1 || true
 # "resources still in use at exit" is an exit-time artifact of GDScript static
 # variables (reported after the game already quit cleanly); every other engine
 # or script error fails the smoke test.

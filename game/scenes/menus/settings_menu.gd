@@ -1,12 +1,13 @@
 class_name SettingsMenu
 extends Control
-## Settings overlay: audio volumes, mute, haptics, effect intensity, control
-## mode, touch debug, privacy. Every change is saved immediately.
+## Settings overlay: audio volumes, mute, haptics, effect intensity, second
+## finger, touch debug, privacy (plus the LUNTE lab control mode in debug
+## builds). Every change is saved immediately.
 
 signal closed
 
 const CONTROL_MODES := ["direct", "offset", "relative"]
-const CONTROL_NAMES := {"direct": "Direkt (Finger = Lunte)", "offset": "Versatz (Lunte über dem Finger)", "relative": "Relativ (wie ein Touchpad)"}
+const CONTROL_NAMES := {"direct": "LUNTE-Labor: direkt", "offset": "LUNTE-Labor: Versatz", "relative": "LUNTE-Labor: relativ"}
 
 
 func _ready() -> void:
@@ -35,8 +36,10 @@ func _ready() -> void:
 	box.add_child(_toggle("Stumm", "muted"))
 	box.add_child(_toggle("Vibration", "haptics"))
 	box.add_child(_effects_row())
-	box.add_child(_control_row())
+	box.add_child(_toggle("Zweiter Finger = zweites Licht", "second_finger"))
 	box.add_child(_toggle("Touch-Anzeige (Test)", "touch_debug"))
+	if OS.is_debug_build():
+		box.add_child(_control_row())  # only the parked LUNTE lab scene uses it
 	var privacy := UiTheme.button("Datenschutz & Werbung")
 	privacy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	privacy.pressed.connect(_show_privacy)

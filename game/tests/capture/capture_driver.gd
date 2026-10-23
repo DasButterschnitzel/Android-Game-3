@@ -1,9 +1,9 @@
 extends Node
-## Plays a prototype with a bot through the real touch input pipeline so the
+## Plays a game scene with a bot through the real touch input pipeline so the
 ## result can be recorded with Godot's movie maker (--write-movie) under Xvfb.
 ## User args (after --): scene=<path> profile=<cautious|normal|greedy> seed=<int>
 
-var scene_path := "res://prototypes/lunte/lunte_proto.tscn"
+var scene_path := "res://scenes/gameplay/echo_game.tscn"
 var profile := "normal"
 var seed_value := 7
 var game: Node
@@ -82,50 +82,59 @@ func _drag(i: int, p: Vector2) -> void:
 	Input.flush_buffered_events()
 
 
-## ECHO: plan with EchoBot, steer the light with real relative drags, bank by
-## tapping the actual button.
-func _drive_echo(_dt: float) -> void:
+## NACHHALL: plan with EchoBot, steer the light with real relative drags,
+## start runs with the real start-ring gesture, bank and restart by tapping
+## the real buttons.
+func _drive_echo(dt: float) -> void:
 	var sim: EchoSim = game.sim
 	if wait > 0.0:
-		wait -= _dt
+		wait -= dt
 		return
 	if echo_bot == null or echo_bot.sim != sim:
-		echo_bot = EchoBot.new(sim, profile if profile in ["perfect", "early", "solo", "sector"] else "early", 380.0)
+		echo_bot = EchoBot.new(sim, profile if profile in ["perfect", "early", "solo", "sector", "chaser"] else "early", 520.0)
+	if game.state == "results":
+		_release()
+		if game.again_button and not game.again_button.disabled:
+			wait = 2.0
+			_tap(game.again_button.get_global_rect().get_center())
+		return
 	match sim.state:
-		"over":
+		"ready", "between":
 			if down:
-				_touch(0, finger, false)
-				down = false
-			wait = 2.5
-			_touch(0, Vector2(360, 700), true)
-			_touch(0, Vector2(360, 700), false)
-		"between":
-			if down:
-				_touch(0, finger, false)
-				down = false
-			wait = 1.2
-			if echo_bot.should_bank():
-				var c: Vector2 = game.bank_button.get_global_rect().get_center()
-				_touch(0, c, true)
-				_touch(0, c, false)
-			else:
-				_start_drag()
-		"ready":
+				_release()
+				wait = 0.4
+				return
+			if game._bank_timer >= 0.0 or game._lock > 0.0:
+				return
+			if sim.state == "between" and echo_bot.should_bank():
+				wait = 0.9
+				_tap(game.bank_button.get_global_rect().get_center())
+				return
 			echo_bot.prepare_run()
-			_start_drag()
+			finger = Vector2(360, 1000)  # above the bank button, like a resting thumb
+			_touch(0, finger, true)
+			down = true
+			for k in 4:
+				finger += Vector2(0, -16)
+				_drag(0, finger)
 		"running":
 			if not down:
-				_start_drag()
-			var d := echo_bot.delta() / float(game.cfg.relative_gain)
-			finger += d
+				finger = Vector2(360, 1000)
+				_touch(0, finger, true)
+				down = true
+			finger += echo_bot.delta() / float(game.cfg.relative_gain)
 			_drag(0, finger)
+			# Keep the finger on the glass: lift and put it down again near the middle.
+			if finger.x < 40 or finger.x > 680 or finger.y < 320 or finger.y > 1240:
+				_release()
 
 
-func _start_drag() -> void:
-	if not down:
-		finger = Vector2(360, 1000)
-		_touch(0, finger, true)
-		down = true
-	for k in 3:
-		finger += Vector2(0, -6)
-		_drag(0, finger)
+func _release() -> void:
+	if down:
+		_touch(0, finger, false)
+		down = false
+
+
+func _tap(p: Vector2) -> void:
+	_touch(0, p, true)
+	_touch(0, p, false)

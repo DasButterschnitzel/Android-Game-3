@@ -17,6 +17,13 @@ var _logger := ErrorLogger.new()
 
 func _run() -> void:
 	OS.add_logger(_logger)
+	# Tests never touch the developer's own save file.
+	var save := root.get_node_or_null("Save") as SaveStore
+	if save:
+		save.path = "user://test_runner_save.json"
+		if FileAccess.file_exists(save.path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(save.path))
+		save.load_from_disk()
 	var filter := ""
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:

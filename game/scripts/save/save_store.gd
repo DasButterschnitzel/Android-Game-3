@@ -8,7 +8,7 @@ extends Node
 
 signal changed(key: String)
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const DEFAULT_PATH := "user://save.json"
 
 var path := DEFAULT_PATH
@@ -27,16 +27,26 @@ static func defaults() -> Dictionary:
 			"haptics": true,
 			"effects": 1.0,  # 1.0 full, 0.5 reduced, 0.0 minimal (shake/flash off)
 			"touch_debug": false,
-			"control_mode": "direct",  # "direct" (finger = fuse head) or "relative" (trackpad)
+			"control_mode": "direct",  # LUNTE lab only: "direct", "offset" or "relative"
 			"left_handed": false,
+			"second_finger": true,  # a second finger lights a second light
 		},
 		"stats": {
 			"best_score": 0,
 			"rounds_played": 0,
-			"total_ignitions": 0,
-			"best_chain": 0,
-			"longest_round": 0.0,
 			"dawns": 0,
+			"waves_banked": 0,
+			"perfect_waves": 0,
+			"lights": 0,
+			"play_seconds": 0.0,
+		},
+		"daily": {
+			"date": "",  # YYYY-MM-DD of the last daily night played
+			"best": 0,  # best score of that night
+			"played": 0,  # rounds of that night
+		},
+		"lab": {
+			"lunte_best": 0,  # parked prototype, debug lab only
 		},
 		"unlocks": {},
 		"onboarding": {},  # hint key -> true once shown
@@ -50,6 +60,15 @@ static func defaults() -> Dictionary:
 
 
 func _ready() -> void:
+	# Debug builds: tests, captures and smoke runs can use their own save file
+	# (user arg save=<file name>) so they never touch a player's progress.
+	if OS.is_debug_build():
+		var args := OS.get_cmdline_user_args()
+		for a in args:
+			if a.begins_with("save="):
+				path = "user://" + a.substr(5).get_file()
+		if "fresh_save" in args and path != DEFAULT_PATH and FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	load_from_disk()
 
 
@@ -66,8 +85,18 @@ func load_from_disk() -> void:
 	if err != OK or typeof(json.data) != TYPE_DICTIONARY:
 		_quarantine_corrupt()
 		return
-	data = _merge(defaults(), json.data)
+	data = _merge(defaults(), _migrate(json.data))
 	data.version = SCHEMA_VERSION
+
+
+## Upgrades older documents before merging.
+## v1 -> v2: stats belonged to the LUNTE prototype; they are not carried over.
+static func _migrate(loaded: Dictionary) -> Dictionary:
+	var v := int(loaded.get("version", 1))
+	if v < 2:
+		loaded.erase("stats")
+		loaded.erase("onboarding")
+	return loaded
 
 
 ## Deep-merges loaded values over defaults so new keys appear after updates
@@ -132,17 +161,39 @@ func set_setting(key: String, value: Variant) -> void:
 	mark_dirty("settings/" + key)
 
 
-## Records a finished round; returns true if it is a new best score.
-func record_round(score: int, ignitions: int, best_chain: int, duration: float) -> bool:
+## Records a finished NACHHALL round; returns true if it is a new best score.
+## Daily nights also keep their own best for the day.
+func record_echo_round(score: int, round_stats: Dictionary, duration: float, daily := false) -> bool:
 	var s: Dictionary = data.stats
 	s.rounds_played += 1
-	s.total_ignitions += ignitions
-	s.best_chain = maxi(s.best_chain, best_chain)
-	s.longest_round = maxf(s.longest_round, duration)
+	s.waves_banked += int(round_stats.get("waves_banked", 0))
+	s.perfect_waves += int(round_stats.get("perfect_waves", 0))
+	s.lights += int(round_stats.get("lights", 0))
+	s.play_seconds += duration
+	if round_stats.get("dawn", false):
+		s.dawns += 1
 	var is_best: bool = score > s.best_score
 	if is_best:
 		s.best_score = score
+	if daily:
+		var today := Time.get_date_string_from_system()
+		var d: Dictionary = data.daily
+		if d.date != today:
+			d.date = today
+			d.best = 0
+			d.played = 0
+		d.played += 1
+		d.best = maxi(d.best, score)
 	mark_dirty("stats")
+	return is_best
+
+
+## LUNTE (parked prototype in the debug lab) keeps a separate best score.
+func record_lunte_round(score: int) -> bool:
+	var is_best: bool = score > int(data.lab.lunte_best)
+	if is_best:
+		data.lab.lunte_best = score
+		mark_dirty("lab")
 	return is_best
 
 

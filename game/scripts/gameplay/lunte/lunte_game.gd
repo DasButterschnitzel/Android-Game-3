@@ -100,13 +100,13 @@ func new_round() -> void:
 		_round_seed = int(Time.get_unix_time_from_system()) * 1000 + round_index
 	sim = FuseSim.new(cfg, arena(), _round_seed)
 	var save := _save()
-	var rounds_played: int = save.data.stats.rounds_played if save else 0
+	var rounds_played: int = 99  # parked prototype: no first-round hints in the lab
 	onboarding.watch(sim, rounds_played)
 	_connect_sim()
 	sim.start(candle_pos())
 	view.setup(sim, _round_seed)
 	hud.sim = sim
-	hud.best = save.data.stats.best_score if save else 0
+	hud.best = int(save.data.lab.lunte_best) if save else 0
 	audio.attach(sim)
 	fx.clear()
 	_virtual.clear()
@@ -282,9 +282,7 @@ func _on_game_over(score: int) -> void:
 	var save := _save()
 	var is_best := false
 	if save:
-		is_best = save.record_round(score, sim.ignitions, sim.best_chain, sim.time)
-		if sim.survived_dawn:
-			save.data.stats["dawns"] = int(save.data.stats.get("dawns", 0)) + 1
+		is_best = save.record_lunte_round(score)
 	state = "results"
 	tracker.cancel_all()
 	audio.stop_all()
@@ -315,7 +313,7 @@ func _show_results(score: int, is_best: bool) -> void:
 	if is_best:
 		o.add_child(UiTheme.label("Neuer Bestwert!", 36, UiTheme.GOOD, true))
 	else:
-		o.add_child(UiTheme.label("Bestwert %s" % LunteHud._fmt(save.data.stats.best_score if save else score), 30, UiTheme.TEXT_DIM))
+		o.add_child(UiTheme.label("Bestwert %s" % LunteHud._fmt(int(save.data.lab.lunte_best) if save else score), 30, UiTheme.TEXT_DIM))
 	var stats := "%d Zündungen · beste Kette %d · %d s" % [sim.ignitions, sim.best_chain, int(sim.time)]
 	if sim.stats.loop_ignitions > 0:
 		stats += "\n%d per Kurzschluss" % sim.stats.loop_ignitions

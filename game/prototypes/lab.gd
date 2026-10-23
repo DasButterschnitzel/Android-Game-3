@@ -1,9 +1,11 @@
 extends Control
 ## Prototype lab: choose which prototype to play.
 
+## ECHO grew into the main game (NACHHALL); the others are parked here so they
+## can be compared on a device under equal conditions (ADR 0002, condition 5).
 const PROTOTYPES := [
-	["LUNTE", "Zieh die Zündschnur – der Funke jagt dich.", "res://prototypes/lunte/lunte_proto.tscn"],
-	["ECHO", "8 Sekunden. Deine früheren Versuche spielen mit.", "res://prototypes/echo/echo_proto.tscn"],
+	["LUNTE (geparkt)", "Produktionsszene mit Grafik und Ton.", "res://scenes/gameplay/lunte_game.tscn"],
+	["LUNTE-Prototyp", "Zieh die Zündschnur – der Funke jagt dich.", "res://prototypes/lunte/lunte_proto.tscn"],
 	["SCHWARM (geparkt)", "Referenz-Spike, nicht weiterentwickelt.", "res://prototypes/schwarm/schwarm_proto.tscn"],
 ]
 
@@ -23,6 +25,12 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 48)
 	box.add_child(title)
+	var back := Button.new()
+	back.text = "Zurück zum Spiel"
+	back.custom_minimum_size = Vector2(600, 90)
+	back.add_theme_font_size_override("font_size", 28)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menus/main_menu.tscn"))
 	for p in PROTOTYPES:
 		var b := Button.new()
 		b.text = "%s\n%s" % [p[0], p[1]]
@@ -33,4 +41,4 @@ func _ready() -> void:
 		var path: String = p[2]
 		b.pressed.connect(func(): get_tree().change_scene_to_file(path))
 		box.add_child(b)
-
+	box.add_child(back)

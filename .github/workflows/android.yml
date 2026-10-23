@@ -51,7 +51,7 @@ jobs:
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           VERSION=$(grep -oP '^version/name="\K[^"]+' game/export_presets.cfg | head -1)
-          bash tools/build_android.sh game "builds/android/pocket-${VERSION}-debug.apk" debug
+          bash tools/build_android.sh game "builds/android/nachhall-${VERSION}-debug.apk" debug
 
       - uses: actions/upload-artifact@v4
         if: always()
