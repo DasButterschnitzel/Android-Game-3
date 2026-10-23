@@ -47,7 +47,9 @@ Plan with your past selves, hit twins at the same moment and crack armored ghost
 ## Grafiken
 - Icon 512×512: `game/assets/icon/icon_512.png` (erzeugt von `tools/art/make_icon.py`)
 - Feature-Grafik 1024×500: `docs/store/feature_graphic_1024x500.png` (`tools/art/make_store_art.py`)
-- Screenshots (9:16): aus echten Aufnahmen (`tools/capture.sh`), keine nachgestellten Szenen.
+- Screenshots (9:16, 1080×1920): `docs/store/screenshots/phone_*.jpg` – Hauptmenü, Lauf mit Echos, Ergebnis
+  „Morgengrauen“, Sternbilder. Erzeugt von `tests/capture/store_shots.tscn` aus echtem, vom Bot gespieltem Spiel
+  (Spielstand mit Beispiel-Statistik vorbelegt, Debug-Labor-Knopf ausgeblendet).
 
 ## Hinweise zur Ehrlichkeit
 - Solange Werbung enthalten ist, im Fragebogen „Enthält Werbung: Ja“ angeben und nicht „werbefrei“ schreiben.
