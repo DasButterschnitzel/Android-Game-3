@@ -34,3 +34,10 @@ static func load_mode(name: String, mode: String) -> Dictionary:
 	var over: Dictionary = modes[mode].duplicate(true)
 	over.erase("_comment")
 	return with_overrides(base, over)
+
+
+## Number of today's daily night (#1 = 2026-10-22, the day NACHHALL was born).
+static func daily_number() -> int:
+	var epoch := Time.get_unix_time_from_datetime_string("2026-10-22T00:00:00")
+	var today := Time.get_unix_time_from_datetime_string(Time.get_date_string_from_system() + "T00:00:00")
+	return int((today - epoch) / 86400) + 1

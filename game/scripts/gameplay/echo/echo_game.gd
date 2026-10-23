@@ -98,7 +98,7 @@ func _ready() -> void:
 	debug_overlay.visible = save != null and bool(save.get_setting("touch_debug"))
 	ui_layer.add_child(debug_overlay)
 	onboarding = EchoOnboarding.new(save)
-	onboarding.hint.connect(func(text): hud.show_hint(text))
+	onboarding.hint.connect(_on_hint)
 	new_round()
 
 
@@ -152,6 +152,12 @@ func _connect_sim() -> void:
 			fx.emit_burst(e.pos, 16, EchoView.enemy_color(EchoSim.Type.ARMOR), 90, 260, 0.6, 4.0)  # plates fly off
 		view.flash_enemy(e.spec.id))
 	sim.enemy_leaked.connect(_on_leaked)
+	sim.enemy_spawned.connect(func(e):
+		if e.spec.type == EchoSim.Type.TWIN and e.spec.id < e.spec.twin and _rounds_played() < 3:
+			var partner: Variant = sim._enemy_by_id(e.spec.twin)
+			if partner != null:
+				var mid: Vector2 = ((e.spec.from as Vector2) + (partner.spec.from as Vector2)) * 0.5
+				view.popup(Vector2(clampf(mid.x, 140, 580), sim.core.y - 120), "Zwillinge!", EchoView.enemy_color(EchoSim.Type.TWIN), 28, 1.5))
 	sim.run_started.connect(func(_i):
 		onboarding.run_started(sim)
 		view.run_started()
@@ -318,14 +324,28 @@ func _after_run() -> void:
 	var lr: Dictionary = sim.last_run
 	if lr.leaked == 0:
 		_bank_timer = PERFECT_BANK_DELAY
-		view.popup(sim.core + Vector2(0, -110), "Perfekt!", UiTheme.GOOD, 44)
+		view.popup(sim.core + Vector2(0, -110), "Perfekt!", UiTheme.GOOD, 44, 1.4)
 		audio.play_ui("perfect")
 		for c in [EchoView.PAPER, UiTheme.GOOD, EchoView.LIVE_COL]:
 			fx.emit_burst(sim.core, 22, c, 120, 420, 1.1, 3.5)
 	else:
-		view.popup(sim.core + Vector2(0, -110), "%d durch" % lr.leaked, UiTheme.DANGER, 34)
+		view.popup(sim.core + Vector2(150, 10), "%d durch" % lr.leaked, UiTheme.DANGER, 40, 1.8)
 	onboarding.run_ended(sim)
 	_update_bank_button()
+
+
+## Onboarding: short labels at the object during a run, everything else as a
+## paper note at the next break.
+func _on_hint(key: String, text: String) -> void:
+	match key:
+		"echo":
+			if not sim.echoes.is_empty():
+				view.light_label(int(sim.echoes[0].id), text, EchoView.echo_color(0), 26, 1.8, 34.0)
+		"recharge":
+			if not sim.live.is_empty():
+				view.light_label(int(sim.live[0].id), text, EchoView.LIVE_COL, 24, 1.5, 40.0)
+		_:
+			hud.show_hint(text)
 
 
 func _on_bank_pressed() -> void:
@@ -343,13 +363,10 @@ func _update_bank_button() -> void:
 	if not show:
 		return
 	var pts := int(round(sim.last_run.points * sim.multiplier_for(sim.echoes.size())))
-	var leaked: int = sim.last_run.leaked
-	bank_button.text = "Kassieren +%d" % pts
-	if leaked > 0:
-		bank_button.text += "  (−%d %s)" % [leaked, "Flamme" if leaked == 1 else "Flammen"]
+	bank_button.text = "Kassieren +%d" % pts  # the cost has its own red label (HUD)
 	var vr := get_viewport_rect()
-	bank_button.size = Vector2(minf(560.0, vr.size.x - 60.0), 96)
-	bank_button.position = Vector2((vr.size.x - bank_button.size.x) * 0.5, vr.size.y - 150 - SafeArea.bottom(get_viewport()))
+	bank_button.size = Vector2(minf(560.0, vr.size.x - 60.0), 104)
+	bank_button.position = Vector2((vr.size.x - bank_button.size.x) * 0.5, vr.size.y - 104 - 56 - SafeArea.bottom(get_viewport()))
 
 
 func _on_struck(light_id: int, pos: Vector2, hits: int, is_echo: bool) -> void:
@@ -416,6 +433,11 @@ func _on_game_over(score: int, survived: bool) -> void:
 	_show_results(score, is_best, survived)
 
 
+func _rounds_played() -> int:
+	var save := _save()
+	return int(save.data.stats.rounds_played) if save else 0
+
+
 func _best(save: SaveStore) -> int:
 	if save == null:
 		return 0
@@ -444,14 +466,18 @@ func _panel_box() -> VBoxContainer:
 	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(_dim)
+	# A night-paper card in the middle (UiTheme.panel_box via the theme).
+	var center := CenterContainer.new()
+	center.theme = UiTheme.get_theme()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ui_layer.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(minf(620.0, get_viewport_rect().size.x - 40.0), 0)
+	center.add_child(card)
 	var o := VBoxContainer.new()
-	o.theme = UiTheme.get_theme()
-	o.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	o.alignment = BoxContainer.ALIGNMENT_CENTER
-	o.offset_left = 40
-	o.offset_right = -40
-	ui_layer.add_child(o)
-	_overlay = o
+	card.add_child(o)
+	_overlay = center
 	return o
 
 
@@ -474,7 +500,7 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	if survived:
 		lines += "\nFlammen am Morgen: %d (+%d)" % [sim.core_hp, sim.dawn_bonus()]
 	if daily:
-		lines = "Tagesnacht\n" + lines
+		lines = "Tagesnacht #%d\n" % Config.daily_number() + lines
 	elif mode == "fullmoon":
 		lines = "Vollmond\n" + lines
 	o.add_child(UiTheme.label(lines, 26, UiTheme.TEXT_DIM, true))
@@ -492,13 +518,13 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	menu.pressed.connect(_to_menu)
 	o.add_child(menu)
-	o.modulate.a = 0.0
+	_overlay.modulate.a = 0.0
 	_dim.modulate.a = 0.0
 	# Short delay so a finger still on the screen cannot hit "again" by accident.
 	again.disabled = true
 	var tw := create_tween()
 	tw.tween_interval(0.9)
-	tw.tween_property(o, "modulate:a", 1.0, 0.25)
+	tw.tween_property(_overlay, "modulate:a", 1.0, 0.25)
 	tw.parallel().tween_property(_dim, "modulate:a", 1.0, 0.25)
 	tw.tween_callback(func(): again.disabled = false)
 

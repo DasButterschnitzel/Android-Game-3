@@ -55,3 +55,8 @@ func test_fullmoon_mode_overrides_base_balance() -> void:
 	sim.wave_index = 4
 	sim._start_wave()
 	assert_eq(sim.wave.size(), 6 + 4 + 2, "denser last wave (6 normal, 2 twin pairs, 2 armored)")
+
+
+func test_daily_number_counts_days() -> void:
+	var n := Config.daily_number()
+	assert_true(n >= 1, "today is at least night #1 (%d)" % n)

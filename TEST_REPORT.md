@@ -16,6 +16,22 @@ als getestet.** Bots und Simulationen sind keine Menschen.
 | CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Artefakt-Upload |
 | Android-Gerät / Emulator | **nicht verfügbar** (keine KVM, kein Gerät). Gerätetests: `docs/playtests/DEVICE_TEST_PLAN.md` |
 
+## 0.4.0 (2026-10-23)
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Unit- und Integrationstests | `run_tests.gd` | **97 / 97 grün** (neu u. a.: Overlays füllen den Bildschirm, Zurück-Taste auf jedem Bildschirm, sicherer Bereich, Lehr-Zettel warten auf die Pause und der neueste gewinnt, Zettel blenden ein, „Dein Echo“ fährt mit dem Echo, **Spielschrift auf allen Texten** in Spiel, Pause-Karte, Menü und Overlays, Glyphen-Abdeckung aller UI-Texte, Sternbilder/Vollmond/Tagesnacht-Nummer, Speicher-Migration v1→v2) |
+| Gegenprobe der Regressionstests | Korrekturen vorübergehend zurückgenommen | Overlay-Tests schlagen mit dem Anker-Code aus 0.3.0 fehl; Schrift-, Label- und Zettel-Test schlagen ohne ihre Korrektur fehl (3 / 3) – die Tests erkennen die Fehler wirklich |
+| Smoke-Test exportierter Build | `tools/smoke_exported.sh` | `SMOKE OK`; Bot-Nacht erreicht das Morgengrauen (1.325 Punkte), keine Engine-/Skriptfehler |
+| Farbsehschwäche | Debug-Shader „Farbsicht-Test“ + `tools/art/cvd_sheet.py` (Machado 2009) | Protan, Deutan, Tritan, Graustufen: eigenes Licht vs. Echo, die drei Geistertypen (Feld und Zeitleiste) und Flamme vs. leerer Slot bleiben unterscheidbar – **Sichtprüfung simulierter Bilder, kein Test mit farbfehlsichtigen Menschen** |
+| Sichtprüfung Aufnahmen | `tools/capture.sh` (48 s `profile=early seed=11`, 30 s + 14 s `profile=solo seed=5`, Menü, Sternbilder) | fand 3 Fehler, alle behoben und mit Tests abgesichert: Kassieren-Knopf in Godot-Standardschrift, „Dein Echo“ blieb am Startpunkt, neuer Zettel einen Frame lang leer; Endstand ohne Befund (`docs/media/nachhall_0.4.0_*`) |
+| Render-Last (Software-Renderer) | `tests/capture/perf_probe.tscn` unter Xvfb/llvmpipe, Bot „perfect“, Seed 11; gleiche Sonde auf dem 0.3.0-Commit | Draw-Calls Median je Echo-Zahl 0–3: **190 / 245 / 272 / 308** (0.3.0: 113 / 142 / 157 / 172), Spitze **394** (0.3.0: 252); Primitive Spitze 12.132 (0.3.0: 10.847). **Die neue Grafik kostet ≈ 70–80 % mehr Draw-Calls** (Tuschekonturen, Schatten, Plattenringe als Einzelbefehle) → Batching-Optimierung ist für 0.5 eingeplant. Frame-Zeiten unter llvmpipe sind **keine Handy-Werte** |
+| APK-Build | `tools/build_android.sh game builds/android/nachhall-0.4.0-debug.apk debug` | gebaut, 60.145.338 Bytes, SHA-256 `80408c92…c614`, Signatur gültig (Debug), minSdk 24, targetSdk 36, Berechtigung nur `VIBRATE` (`docs/builds/nachhall-0.4.0-debug.verify.txt`) |
+
+**Nicht getestet:** alles am Gerät (siehe 0.2.0) – insbesondere Lesbarkeit auf echten Displays und bei Sonnenlicht,
+tatsächliche Bildrate auf Mittelklasse- und Einsteigergeräten mit der neuen Grafik, Wirkung auf Menschen mit
+Farbsehschwäche. Neue Prüfschritte dafür: `docs/playtests/DEVICE_TEST_PLAN.md`, Abschnitt G.
+
 ## 0.3.0 (2026-10-23)
 
 | Prüfung | Befehl | Ergebnis |

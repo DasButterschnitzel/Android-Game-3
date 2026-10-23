@@ -2,16 +2,20 @@ class_name EchoOnboarding
 extends RefCounted
 ## Teaches NACHHALL inside the first rounds: one short hint at the moment it
 ## matters, each at most once ever (persisted). No tutorial screens.
+## Keys "echo" and "recharge" are short labels shown at the object during a
+## run; their "_note" partners explain the same thing at the next break.
 ## The teaching wave itself does the teaching (one light cannot stop both
 ## ghosts); the hints only name what the player just saw.
 
-signal hint(text: String)
+signal hint(key: String, text: String)
 
 const HINTS := {
 	"start": "Zieh irgendwo auf dem Bildschirm – dein Licht folgt deinem Finger.",
 	"alone": "Ein Licht schafft nicht beide. Zieh noch einmal – dein Echo hilft mit!",
-	"echo": "Dein Echo wiederholt deinen letzten Lauf: Weg und Treffer. Nimm du den anderen!",
-	"recharge": "Nach jedem Treffer glüht dein Licht kurz nach.",
+	"echo": "Dein Echo",
+	"recharge": "lädt …",
+	"echo_note": "Dein Echo wiederholt deinen letzten Lauf: Weg und Treffer. Nimm du den anderen!",
+	"recharge_note": "Nach jedem Treffer glüht dein Licht 1 Sekunde nach – dann trifft es wieder.",
 	"bank": "Kassieren: Punkte × Multiplikator. Jedes Licht mehr senkt ihn.",
 	"leak": "Wer durchkommt, kostet beim Kassieren eine Flamme. Ohne Flammen ist die Nacht vorbei.",
 	"twins": "Zwillinge: Triff beide fast gleichzeitig – mit zwei verschiedenen Lichtern.",
@@ -41,7 +45,7 @@ func show(key: String) -> void:
 	_seen[key] = true
 	if _save:
 		_save.mark_dirty("onboarding")
-	hint.emit(HINTS[key])
+	hint.emit(key, HINTS[key])
 
 
 func round_started(_sim: EchoSim, rounds_played: int) -> void:
@@ -63,6 +67,7 @@ func wave_started(sim: EchoSim) -> void:
 func run_started(sim: EchoSim) -> void:
 	if sim.wave_index == 0 and sim.run_index == 1:
 		show("echo")
+		show("echo_note")
 
 
 func run_ended(sim: EchoSim) -> void:
@@ -87,4 +92,5 @@ func tick(sim: EchoSim) -> void:
 	for e in sim.enemies:
 		if e.alive and (e.pos as Vector2).distance_to(l.pos) <= float(sim.cfg.hit_radius):
 			show("recharge")
+			show("recharge_note")
 			return

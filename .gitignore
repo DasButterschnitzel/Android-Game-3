@@ -15,3 +15,5 @@ __pycache__/
 builds/linux/
 # Build reports are copied to docs/builds/ for releases worth keeping
 builds/**/*.verify.txt
+# Local agent worktrees (Claude Code)
+.claude/

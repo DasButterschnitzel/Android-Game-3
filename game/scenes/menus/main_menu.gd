@@ -30,27 +30,32 @@ func _ready() -> void:
 	world.add_child(_view)
 	_new_demo()
 	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.02, 0.07, 0.45)
+	shade.color = Color(0.02, 0.02, 0.07, 0.3)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.offset_top = 120
-	add_child(box)
+	var top_inset := SafeArea.top(get_viewport())
+	var bottom_inset := SafeArea.bottom(get_viewport())
+	# Top: title. Middle: the live night scene (the lantern is the logo).
+	# Bottom: actions within thumb reach.
+	var top := VBoxContainer.new()
+	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	top.offset_top = 70 + top_inset
+	add_child(top)
 	_logo = Control.new()
-	_logo.custom_minimum_size = Vector2(0, 220)
+	_logo.custom_minimum_size = Vector2(0, 150)
 	_logo.draw.connect(_draw_logo)
-	box.add_child(_logo)
-	box.add_child(UiTheme.label("Jeder Lauf wird ein Echo, das mit dir kämpft.", 27, UiTheme.TEXT_DIM, true))
+	top.add_child(_logo)
+	top.add_child(UiTheme.label("Jeder Lauf wird ein Echo, das mit dir kämpft.", 27, UiTheme.TEXT_DIM, true))
 	var save := _save()
 	var best: int = save.data.stats.best_score if save else 0
 	if best > 0:
-		box.add_child(UiTheme.label("Bestwert %s" % EchoHud.fmt(best), 30, UiTheme.ACCENT, true))
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 24)
-	box.add_child(spacer)
+		top.add_child(UiTheme.label("Bestwert %s" % EchoHud.fmt(best), 30, UiTheme.ACCENT, true))
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	box.offset_bottom = -48 - bottom_inset
+	add_child(box)
 	var play := UiTheme.primary_button("Spielen")
 	play.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	play.pressed.connect(func(): _start(false, ""))
@@ -90,9 +95,10 @@ func _ready() -> void:
 
 func _daily_text() -> String:
 	var save := _save()
+	var title := "Tagesnacht #%d" % Config.daily_number()
 	if save and save.data.daily.date == Time.get_date_string_from_system() and int(save.data.daily.played) > 0:
-		return "Tagesnacht · heute %s" % EchoHud.fmt(int(save.data.daily.best))
-	return "Tagesnacht"
+		return "%s · heute %s" % [title, EchoHud.fmt(int(save.data.daily.best))]
+	return title
 
 
 func _new_demo() -> void:
@@ -144,33 +150,21 @@ func _process(delta: float) -> void:
 		_logo.queue_redraw()
 
 
-## Logo: "NACHHALL" with echo rings spreading from a small lantern.
+## Logo: "NACHHALL" whose letters breathe with a faint echo copy; the real
+## lantern of the night scene below is the emblem.
 func _draw_logo() -> void:
 	var w := _logo.size.x
 	var font: Font = UiTheme.FONT_BOLD
 	var title := "NACHHALL"
 	var fs := 112
 	var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var base := Vector2((w - tw) * 0.5, 190)
-	var lantern := Vector2(w * 0.5, 52)
+	var base := Vector2((w - tw) * 0.5, 120)
 	for k in 3:
-		var ph := fmod(_t * 0.45 + k / 3.0, 1.0)
-		_logo.draw_arc(lantern, 18.0 + ph * 120.0, 0, TAU, 48, Color(EchoView.ECHO_COLS[k], 0.5 * (1.0 - ph)), 3.0, true)
-	var g := ArtKit.glow_texture()
-	_logo.draw_texture_rect(g, Rect2(lantern - Vector2(70, 70), Vector2(140, 140)), false, Color(1, 0.65, 0.3, 0.7))
-	_logo.draw_colored_polygon(_ellipse(lantern, 20, 24), EchoView.PAPER)
-	_logo.draw_rect(Rect2(lantern + Vector2(-11, -28), Vector2(22, 5)), Color("#3a2b3f"))
-	_logo.draw_rect(Rect2(lantern + Vector2(-9, 23), Vector2(18, 4)), Color("#3a2b3f"))
+		var ph := fmod(_t * 0.35 + k / 3.0, 1.0)
+		var c: Color = EchoView.ECHO_COLS[k]
+		_logo.draw_string(font, base + Vector2(0, -ph * 26.0), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(c, 0.22 * (1.0 - ph)))
 	_logo.draw_string_outline(font, base, title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 14, Color(0.03, 0.03, 0.09, 0.9))
 	_logo.draw_string(font, base, title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UiTheme.TEXT)
-
-
-func _ellipse(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for i in 24:
-		var a := TAU * i / 24.0
-		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
-	return pts
 
 
 ## Android back on the main menu leaves the app (overlays above it close first).

@@ -44,6 +44,30 @@ func is_busy() -> bool:
 	return _busy
 
 
+## Debug builds: colour-vision simulation over every screen (0 = off,
+## 1 protan, 2 deutan, 3 tritan, 4 greyscale). See docs/art/ART_REVIEW_0.4.md P2-12.
+var _cvd: CanvasLayer
+
+
+func set_cvd_mode(mode: int) -> void:
+	if _cvd:
+		_cvd.queue_free()
+		_cvd = null
+	if mode <= 0:
+		return
+	_cvd = CanvasLayer.new()
+	_cvd.layer = 99
+	var rect := ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://assets/shaders/cvd_debug.gdshader")
+	mat.set_shader_parameter("mode", mode)
+	rect.material = mat
+	_cvd.add_child(rect)
+	add_child(_cvd)
+
+
 ## Android back button / gesture (and Escape on desktop). The topmost visible
 ## node in group "back_handler" whose on_back() returns true consumes it.
 ## project setting application/config/quit_on_go_back is off, so leaving the

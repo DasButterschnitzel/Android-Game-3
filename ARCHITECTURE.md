@@ -19,16 +19,18 @@ Godot 4.7.2, GDScript mit statischen Typen, Renderer GL Compatibility (läuft au
 game/
   project.godot, export_presets.cfg     Projekt, Android- und Linux-Smoke-Export
   data/balance/echo.json                Regeln und Wellen von NACHHALL
-  scenes/menus/                         Hauptmenü (mit Bot-Partie im Hintergrund), Einstellungen, Credits, Datenschutz
+  scenes/menus/                         Hauptmenü (mit Bot-Partie im Hintergrund), Einstellungen, Sternbilder
+                                        (Sammlung/Statistik), Credits, Datenschutz
   scenes/gameplay/echo_game.tscn        das Spiel
   scripts/
     core/        Config (JSON), GameFlow (Autoload "Flow": Szenenwechsel mit Blende), SmokeTest
     input/       PointerTracker, TouchDebugOverlay
     save/        SaveStore (Autoload "Save")
     audio/       AudioDirector (Autoload "Audio")
-    systems/     Haptics
-    ads/         AdPolicy (Frequenzregeln, getestet; SDK-Anbindung folgt in 0.6)
-    ui/          UiTheme (Theme in Code, Schrift Fredoka)
+    systems/     Haptics, Progression (Sternbilder/Achievements, kosmetische Laternenpapiere)
+    ads/         AdPolicy (Frequenzregeln), AdService (Fassade) mit Adaptern none/mock/admob –
+                 in 0.4 nicht als Autoload registriert, also ohne Wirkung; Aktivierung in 0.6
+    ui/          UiTheme (Theme in Code, Schrift Fredoka), SafeArea (Kamera-Aussparung, Gestenleiste)
     gameplay/
       echo/      NACHHALL: EchoSim (Regeln), EchoBot (Simulation/Aufnahme), EchoGame (Controller),
                  EchoView (Welt), EchoHud, EchoAudio, EchoOnboarding
@@ -54,6 +56,11 @@ EchoGame (Node2D)            Rundenlebenszyklus, Zustände play/paused/results, 
     ├── TouchDebugOverlay    (Einstellung „Touch-Anzeige“)
     └── Pause-/Ergebnis-Overlays
 ```
+Controls unter einer `CanvasLayer` erben kein Theme: sie bekommen das Theme oder die Schrift explizit
+(`UiTheme.primary_button` setzt Fredoka selbst); `TestCase.assert_game_font` prüft das für Spiel, Menü und Overlays.
+Kurzlabels am Objekt (`EchoView.light_label`) fahren mit ihrem Licht mit; Lehrtexte sammelt `EchoHud` und zeigt in
+der nächsten Pause den neuesten als Zettel.
+
 `EchoSim` lebt als `RefCounted` im Controller. Signale (`light_struck`, `enemy_destroyed`, `run_ended`, …) treiben
 Darstellung und Ton. Lambdas fangen nie die Simulation selbst (sonst Referenzzyklus; ein Test mit `WeakRef` prüft,
 dass alte Runden freigegeben werden).
@@ -70,6 +77,13 @@ dass alte Runden freigegeben werden).
 Umbenennen (atomar). Unbekannte Schlüssel fallen weg, fehlende werden ergänzt, defekte Dateien werden beiseitegelegt.
 Bei App-Pause wird sofort gespeichert. Debug-Builds können per Startargument `save=<datei>` (und `fresh_save`) eine
 eigene Datei nutzen – Tests, Aufnahmen und Smoke-Test berühren so nie echte Spielstände.
+
+## Zurück-Taste und sicherer Bereich
+- Android-Zurück (Taste oder Geste) kommt als `NOTIFICATION_WM_GO_BACK_REQUEST` bei `GameFlow` an
+  (`quit_on_go_back` ist aus). `handle_back()` fragt den obersten sichtbaren Knoten der Gruppe `back_handler`
+  (`on_back()`): Spiel → Pause/Weiter, Overlays → schließen, Hauptmenü → App verlassen.
+- `SafeArea` rechnet `DisplayServer.get_display_safe_area()` in Viewport-Einheiten um: HUD und Spielfeld rücken unter
+  eine Kamera-Aussparung, der Kassieren-Button über die Gestenleiste. Tests setzen `SafeArea.override`.
 
 ## Lebenszyklus (Android)
 - `NOTIFICATION_APPLICATION_PAUSED` / `FOCUS_OUT`: laufender Lauf → Pause-Menü; sonst alle Zeiger abbrechen;

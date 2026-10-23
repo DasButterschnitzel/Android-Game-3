@@ -42,6 +42,7 @@ func _ready() -> void:
 	box.add_child(_toggle("Touch-Anzeige (Test)", "touch_debug"))
 	if OS.is_debug_build():
 		box.add_child(_control_row())  # only the parked LUNTE lab scene uses it
+		box.add_child(_cvd_row())
 	var privacy := UiTheme.button("Datenschutz & Werbung")
 	privacy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	privacy.pressed.connect(_show_privacy)
@@ -129,6 +130,22 @@ func _control_row() -> Control:
 		var nxt: String = CONTROL_MODES[(CONTROL_MODES.find(v) + 1) % CONTROL_MODES.size()]
 		_save().set_setting("control_mode", nxt)
 		b.text = "Steuerung: " + CONTROL_NAMES[nxt])
+	return b
+
+
+## Debug: simulate colour vision deficiencies (not saved; resets on restart).
+func _cvd_row() -> Control:
+	var names := ["Farbsicht-Test: aus", "Farbsicht-Test: Protan", "Farbsicht-Test: Deutan", "Farbsicht-Test: Tritan", "Farbsicht-Test: Grau"]
+	var b := UiTheme.button(names[0])
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.set_meta("mode", 0)
+	b.pressed.connect(func():
+		var m: int = (int(b.get_meta("mode")) + 1) % names.size()
+		b.set_meta("mode", m)
+		b.text = names[m]
+		var flow := get_node_or_null("/root/Flow")
+		if flow:
+			flow.set_cvd_mode(m))
 	return b
 
 

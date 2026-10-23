@@ -68,6 +68,16 @@ notieren: Zeit bis zum Verstehen, erste Reaktion, Anzahl freiwilliger Runden, �
 - Vor Lauf 4 einer Welle fragen: „Welche Schatten kommen durch?“ – Anteil richtiger Vorhersagen (Ziel ≥ 60 %).
 - Zwillinge: Anteil zerstörter Paare nach 5 Nächten (Ziel ≥ 50 %); Wort „unfair“ gefallen?
 
+## G. Lesbarkeit & Darstellung (ab 0.4)
+| # | Schritt | Erwartung |
+|---|---|---|
+| G1 | Bei voller und bei niedriger Helligkeit spielen, drinnen und draußen bei Tageslicht | Geistertypen, Echo-Ziffern, eigenes Licht und Zeitleiste ohne Anstrengung erkennbar |
+| G2 | Erste Nacht nach frischer Installation | Lehr-Zettel erscheinen nur zwischen den Läufen, sind in < 3 s gelesen und nie veraltet („Zieh irgendwo…“ verschwindet nach dem ersten Lauf) |
+| G3 | Kassieren nach einem Lauf mit Lecks | rotes Kosten-Etikett wird ohne Suchen gelesen; kostet es die letzten Flammen, steht „die Laterne erlischt“ dabei |
+| G4 | System-Farbkorrektur „Graustufen“ bzw. Deuteranomalie einschalten (oder Testperson mit Farbsehschwäche) | die drei Geistertypen, Echo vs. eigenes Licht und Flamme vs. leerer Slot bleiben unterscheidbar |
+| G5 | Kleines (≤ 5,5″) und großes (≥ 6,7″) Display | nichts abgeschnitten; Spielfeld gleich groß, nur die Ränder wachsen |
+| G6 | Sternbilder-Seite öffnen, Laternenpapier wechseln | Papier wirkt sofort im Menü und im Spiel; gesperrte Papiere nennen ihre Bedingung |
+
 ## Vorlage Ergebnisprotokoll
 ```
 Version: 0.x.y   Gerät: <Modell, Android-Version>   Datum:

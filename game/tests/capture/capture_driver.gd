@@ -28,6 +28,10 @@ func _ready() -> void:
 		game.seed_override = seed_value
 	add_child(game)
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("cvd="):
+			var flow := get_node_or_null("/root/Flow")
+			if flow:
+				flow.set_cvd_mode(int(a.substr(4)))
 		match a:
 			"open=collection":
 				game.add_child(CollectionPanel.new())

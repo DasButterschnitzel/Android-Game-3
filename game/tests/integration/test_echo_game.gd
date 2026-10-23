@@ -217,3 +217,76 @@ func test_hud_and_buttons_respect_the_safe_area() -> void:
 	var r := game.bank_button.get_global_rect()
 	assert_true(r.end.y <= game.get_viewport_rect().size.y - 40.0, "bank button above the gesture bar")
 	SafeArea.override = Vector4(-1, -1, -1, -1)
+
+
+func test_teaching_notes_wait_for_the_break() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
+	start_run_and_release()
+	await physics_frames(3)
+	game.hud.show_hint("Testhinweis")
+	await frames(3)
+	assert_eq(game.hud.note_text(), "", "no teaching text during a run")
+	await wait_run_end()
+	await frames(20)
+	assert_eq(game.hud.note_text(), "Testhinweis", "shown at the next break")
+
+
+func test_newest_note_replaces_an_outdated_one() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
+	game.hud.show_hint("Alt")
+	await frames(5)
+	assert_eq(game.hud.note_text(), "Alt", "shown before the first run")
+	start_run_and_release()  # the player starts quickly, before reading it
+	await physics_frames(3)
+	game.hud.show_hint("Neu")
+	await wait_run_end()
+	await frames(20)
+	assert_eq(game.hud.note_text(), "Neu", "the newer note wins at the next break")
+
+
+
+func test_buttons_and_cards_use_the_game_font() -> void:
+	game.bank_button.text = "Kassieren +10"  # bank button lives on a CanvasLayer
+	assert_game_font(game, "game scene")
+	game.pause()
+	await frames(2)
+	assert_game_font(game, "pause card")
+	game.resume_play()
+
+
+func test_echo_label_rides_with_the_echo() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding.erase("echo")
+	var p := rest_point()
+	touch(0, p, true)
+	for i in 30:  # a run that travels, so its echo travels too
+		p += Vector2(-6, -10)
+		drag(0, p)
+		await physics_frames(1)
+	touch(0, p, false)
+	await wait_run_end()
+	for i in 200:  # past the start lock
+		if game._lock <= 0.0:
+			break
+		await frames(1)
+	start_run_and_release()
+	assert_eq(game.sim.run_index, 1, "second run started")
+	await physics_frames(40)
+	var label: Dictionary = {}
+	for pop in game.view.popups:
+		if pop.text == "Dein Echo":
+			label = pop
+	assert_false(label.is_empty(), "the first echo is named")
+	if label.is_empty():
+		return
+	var path: PackedVector2Array = game.sim.echoes[0].path
+	var echo_now: Vector2 = path[mini(game.sim.tick, path.size() - 1)]
+	assert_true(echo_now.distance_to(path[0]) > 20.0, "the echo has moved away from its start")
+	assert_vec_near(label.pos as Vector2, echo_now - Vector2(0, 34), 1.0, "label sits on the echo, not where it started")
+
+
+func test_a_new_note_fades_in() -> void:
+	game.hud.show_hint("Erster Zettel")
+	await frames(1)
+	assert_true(game.hud._note.modulate.a < 0.5, "first frame of a note is faded (its text is laid out first)")
+	await frames(30)
+	assert_near(game.hud._note.modulate.a, 1.0, 0.01, "fully visible after the fade")

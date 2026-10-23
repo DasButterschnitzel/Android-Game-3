@@ -35,10 +35,11 @@ Eine **Nacht** = 5 Wellen. Drei Flammen. Ohne Flammen ist die Nacht vorbei; wer 
 | Punkte | normal 10, Zwilling 15, gepanzert 25 | |
 
 ### Schatten-Typen
-- **Normal** (rosa Rand) – ein Treffer.
-- **Zwillinge** (violett, ab Welle 3, angekündigt) – zwei verbundene Schatten, die von **zwei verschiedenen Lichtern
+Typ über **Form**, Farbe nur als zweiter Kanal (farbsehschwäche-sicher, geprüft per Simulation):
+- **Normal** (rosa Rand, zwei Augen, Symbol ▲) – ein Treffer.
+- **Zwillinge** (violett, ein großes Auge, Tusche-Faden zum Partner, Symbol ▲▲; ab Welle 3, angekündigt) – zwei verbundene Schatten, die von **zwei verschiedenen Lichtern
   innerhalb von 0,6 s** getroffen werden müssen. Wird einer getroffen, zeigt ein Countdown-Ring am Partner das Fenster.
-- **Gepanzert** (orange Platten, ab Welle 4) – braucht Treffer von **zwei verschiedenen Lichtern** (beliebige Zeit);
+- **Gepanzert** (orange Plattenring, Symbol ■; ab Welle 4) – braucht Treffer von **zwei verschiedenen Lichtern** (beliebige Zeit);
   ein Licht verschwendet keine Ladung an einen Panzer, den es schon angeknackst hat.
 
 ### Wellen (`game/data/balance/echo.json`)
@@ -58,15 +59,19 @@ Eine **Nacht** = 5 Wellen. Drei Flammen. Ohne Flammen ist die Nacht vorbei; wer 
 
 ## 5. Lesbarkeit und Fairness
 - Alles, was während eines Laufs gelesen werden muss, steht **oben**: Punkte, Welle, Multiplikator mit Licht-Punkten,
-  Zeitleiste mit Ankunft jedes Schattens (Dreiecke) und Echo-Treffern (Rauten).
-- Echo-Spuren zeigen **Ring-Marken**, wo und wann das Echo zuschlagen wird; ältere Echos sind blasser.
-- Die Wege der Schatten sind vor dem Lauf als gestrichelte Linien sichtbar.
+  Zeitleiste mit Abspielkopf, Ankunft jedes Schattens (dasselbe Typ-Symbol wie am Rand) und Echo-Treffern (Rauten).
+- Echos sind **nummerierte Scheiben** in kühlem „Mondlicht“; warm ist nur das eigene Licht. Ihre Wege erscheinen nur
+  1 s voraus, ihre Treffer 2 s voraus als Ring mit Ziffer (wo und wann das Echo zuschlägt).
+- Die Wege der Schatten sind zwischen den Läufen gedämpft sichtbar, im Lauf nur für Schatten, die gleich erscheinen.
+- **Ein Textkanal:** Lehrtexte nur zwischen den Läufen als Zettel über dem Startring; im Lauf nur Kurzlabels, die am
+  Objekt mitfahren („Dein Echo“, „lädt …“, „Zwillinge!“). Stil und Messwerte: `docs/art/STYLE_GUIDE.md`.
 - Kein versteckter Zufall: Welle und Echos sind deterministisch.
 - Fehleingaben: Startring (bewusster Zug), verbrauchte Finger nach Laufende, Kassieren als eigener Button,
   Neustart-Sperre 0,9 s auf dem Ergebnis-Bildschirm.
 
 ## 6. Onboarding (ohne Tutorial-Bildschirme)
-Die Lehr-Welle lehrt selbst. Hinweise erscheinen einmalig im Moment, in dem sie gebraucht werden (gespeichert):
+Die Lehr-Welle lehrt selbst. Hinweise erscheinen einmalig im Moment, in dem sie gebraucht werden (gespeichert);
+als Zettel in der nächsten Pause, wobei der neueste gewinnt (ein Zettel gilt erst nach 1 s Sichtbarkeit als gelesen):
 Steuerung → „Ein Licht schafft nicht beide“ → „Dein Echo wiederholt Weg und Treffer“ → Nachglühen → Kassieren →
 Flammen → Zwillinge → Gepanzerte → Profi-Tipp zweiter Finger. In der allerersten Lehr-Welle wird der
 Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
@@ -80,14 +85,17 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 - Vollständig spielbar ohne Ton; alles Hörbare ist auch sichtbar.
 
 ## 8. Wiederspielwert ohne Dark Patterns
-- Tagesnacht (gleicher Seed für alle am selben Tag, eigener Tagesbestwert, offline).
-- Persönlicher Bestwert, Statistiken. Geplant (0.5): rein kosmetische Freischaltungen über Spielerfolge.
+- Tagesnacht (gleicher Seed für alle am selben Tag, fortlaufende Nummer, eigener Tagesbestwert, offline).
+- Persönlicher Bestwert je Modus, Statistiken auf der Seite „Sternbilder“.
+- **Sternbilder** (10 Achievements) schalten **rein kosmetische** Laternenpapiere frei – kein Spielvorteil.
+- **Vollmond** (schwerer, freigeschaltet durch das erste Morgengrauen) als Ziel für Geübte.
 - Keine Energie, keine Wartezeiten, keine Echtgeld-Währung, keine Lootboxen, keine Streak-Strafen, kein Login.
 
 ## 9. Werbung (Rahmen, Umsetzung ab 0.6)
 - Nie während eines Laufs, nie direkt nach dem ersten Start, nie bei jedem Verlust.
-- Interstitial frühestens nach 3 abgeschlossenen Nächten, danach höchstens jede 4. Nacht und nie öfter als alle
-  3 Minuten (`AdPolicy`, getestet; Obergrenze im ungünstigsten Fall ≈ 10/h bei 90-s-Nächten – wird in 0.6 geprüft);
+- Neue Spieler: die ersten 5 Nächte überhaupt werbefrei; pro Sitzung frühestens nach 3 Nächten, danach höchstens jede
+  4. Nacht und nie öfter als alle 3 Minuten (`AdPolicy`, getestet; Obergrenze im ungünstigsten Fall ≈ 10/h bei
+  90-s-Nächten – wird in 0.6 geprüft). Einwilligung wird erst nach der zweiten Nacht erfragt, nicht beim ersten Start;
   Rewarded nur optional und fair. Werbung vollständig abschaltbar; Spiel funktioniert ohne Netz.
 
 ## 10. Offene Risiken (für den Gerätetest)

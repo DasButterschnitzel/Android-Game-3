@@ -29,7 +29,8 @@ tools/build_android.sh game builds/android/nachhall-debug.apk debug   # APK baue
 godot --headless --path game --script res://tests/simulation/sim_echo.gd -- 40 7000 600 | python3 tools/sim/summarize_echo.py
 tools/capture.sh /tmp/cap 40 scene=res://scenes/gameplay/echo_game.tscn profile=early seed=11   # Video
 python3 tools/audio/make_nachhall_audio.py && python3 tools/audio/analyze_audio.py --report docs/audio/AUDIO_REPORT.md
-python3 tools/art/make_icon.py
+python3 tools/art/make_icon.py && python3 tools/art/make_store_art.py
+python3 tools/art/cvd_sheet.py out.png frame1.png [frame2.png ...]   # Farbsehschwäche-Simulation von Aufnahmen
 ```
 Im Editor: `game/project.godot` öffnen und starten. Mit der Maus wird Touch emuliert (ein Finger).
 Debug-Builds zeigen im Hauptmenü ein Prototyp-Labor mit den geparkten Prototypen.
@@ -47,6 +48,11 @@ Debug-Builds zeigen im Hauptmenü ein Prototyp-Labor mit den geparkten Prototype
 | `docs/concepts/` | Konzepte, Kritik, Bewertung |
 | `docs/decisions/` | Entscheidungen (ADR) |
 | `docs/playtests/` | Simulationsprotokolle, Gerätetest-Plan, Testprotokoll |
+| `docs/art/` | Stilguide „Papiertheater bei Laternenlicht“, Art-Gutachten 0.4 (Kontrast-, Farbsicht-Messungen) |
+| `docs/audio/` | Klang-Bericht (Pegel, Klicks, Bassanteil je Datei) |
+| `docs/compliance/` | Datenschutzerklärung (Entwurf), Data-Safety-Angaben, Werbung und Einwilligung |
+| `docs/store/` | Store-Eintrag (Entwurf), Feature-Grafik |
+| `docs/builds/`, `docs/media/` | APK-Prüfberichte (aapt2/apksigner), Bot-Videos und Kontaktbögen je Version |
 
 ## Lizenz
 Code und eigene Assets: noch nicht festgelegt (Entscheidung des Projektinhabers). Fremdbestandteile siehe

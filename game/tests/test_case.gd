@@ -47,6 +47,22 @@ func assert_between(v: float, lo: float, hi: float, msg := "") -> void:
 		fail("%s expected %f in [%f, %f]" % [msg, v, lo, hi])
 
 
+## Every visible text control below root must render in the game font
+## (a Control under a CanvasLayer inherits no theme and falls back silently).
+func assert_game_font(root: Node, msg := "") -> void:
+	for c in root.find_children("*", "Control", true, false):
+		var text := ""
+		if c is Label:
+			text = (c as Label).text
+		elif c is Button:
+			text = (c as Button).text
+		if text == "":
+			continue
+		var font := (c as Control).get_theme_font("font")
+		if font == null or not font.resource_path.contains("Fredoka"):
+			fail("%s: \"%s\" (%s) uses %s" % [msg, text, c.name, font.resource_path if font else "no font"])
+
+
 ## Waits n process frames (for tests that need the scene tree to tick).
 func frames(n: int) -> void:
 	for i in n:

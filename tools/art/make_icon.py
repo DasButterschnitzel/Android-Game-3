@@ -21,11 +21,10 @@ def sky(size):
     for y in range(size):
         t = y / (size - 1)
         d.line([(0, y), (size, y)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
-    rnd = random.Random(7)
-    for _ in range(int(size * 0.12)):
-        x, y = rnd.uniform(0, size), rnd.uniform(0, size * 0.75)
-        r = rnd.uniform(0.4, 1.3) * size / 432
-        a = rnd.randint(90, 220)
+    # A few big stars only (small ones vanish at 48 dp).
+    for (fx, fy) in [(0.16, 0.18), (0.82, 0.14), (0.88, 0.62), (0.12, 0.7), (0.7, 0.86)]:
+        r = 3.2 * size / 432
+        x, y = fx * size, fy * size
         d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 245, 220))
     return im
 
@@ -43,16 +42,17 @@ def lantern_layer(size, mono=False, rings=True):
         im = Image.alpha_composite(im, glow)
     d = ImageDraw.Draw(im)
     if rings:
-        cols = [(127, 214, 255), (166, 255, 158), (255, 226, 122)]
-        for k, rr in enumerate([0.235, 0.29, 0.345]):
+        # Two echo arcs in the cool "moonlight" palette, inside the adaptive-icon
+        # safe zone: on 432 px the outer edge is at r 128 (safe zone ends at 132).
+        cols = [(166, 240, 255), (41, 204, 177)]
+        for k, rr in enumerate([90 / 432, 118 / 432]):
             r = S * rr
-            col = (255, 255, 255, 255) if mono else cols[k] + (int(255 - k * 30),)
-            w = int(S * 0.016)
-            # open rings: echoes spreading out
-            start = -60 + k * 35
+            col = (255, 255, 255, 255) if mono else cols[k] + (255,)
+            w = int(S * 20 / 432)
+            start = -70 + k * 40
             d.arc([c - r, c - r, c + r, c + r], start, start + 250, fill=col, width=w)
-    # lantern body
-    rx, ry = S * 0.125, S * 0.15
+    # lantern body (~110 px wide on 432)
+    rx, ry = S * 0.128, S * 0.153
     body = (255, 255, 255, 255) if mono else (255, 213, 138, 255)
     d.ellipse([c - rx, c - ry, c + rx, c + ry], fill=body)
     if not mono:
