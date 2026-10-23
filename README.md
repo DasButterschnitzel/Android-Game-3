@@ -1,11 +1,14 @@
 # NACHHALL (Arbeitstitel)
 
-Ein kostenloses, werbefinanziertes Android-Casualspiel für sehr kurze Pausen: Du verteidigst eine Papierlaterne gegen
-Tuschegeister, in Läufen von höchstens acht Sekunden – und **jeder Lauf wird ein Echo, das danach mitspielt**.
-Eine Nacht dauert 1–3 Minuten. Keine Käufe, keine Energie, kein Login, vollständig offline spielbar.
+Ein kostenloses Android-Casualspiel für sehr kurze Pausen, angelegt auf Finanzierung durch Werbung: Du verteidigst
+eine Papierlaterne gegen Tuschegeister, in Läufen von höchstens acht Sekunden – und **jeder Lauf wird ein Echo, das
+danach mitspielt**. Eine Nacht dauert 1–3 Minuten. Keine Käufe, keine Energie, kein Login, vollständig offline
+spielbar. **Echte Werbung ist nicht aktiv:** Test-Builds zeigen markierte Platzhalter, eine separate Werbetest-APK nutzt
+Googles Test-IDs, das Release-Bundle enthält keine Werbung – echte Anzeigen erst nach Freigabe des Inhabers
+(`docs/RELEASE.md` §6).
 
 Entstanden als „autonomes Multi-Agenten-Studio“ (Recherche → 19 Konzepte → Kritik → zwei Prototypen → Entscheidung).
-Der Weg dorthin ist in `docs/` dokumentiert, insbesondere `docs/decisions/` (ADR 0001–0003).
+Der Weg dorthin ist in `docs/` dokumentiert, insbesondere `docs/decisions/` (ADR 0001–0005).
 
 ## Status
 Aktueller Build und Testergebnisse: `CHANGELOG.md`, `TEST_REPORT.md`.
@@ -49,6 +52,7 @@ Debug-Builds zeigen im Hauptmenü ein Prototyp-Labor mit den geparkten Prototype
 | `CHANGELOG.md` | Versionen |
 | `TEST_REPORT.md` | was wie getestet ist – und was nicht |
 | `ROADMAP.md` | Meilensteine bis zum Release-Kandidaten |
+| `docs/compliance/ADS_TEST_BUILD.md` | Werbetest-Build: Plugin, Test-ID-Sperren, Prüfungen, Gerätetest-Checkliste |
 | `docs/research/` | Markt- und Spielrecherche, Innovation Map |
 | `docs/concepts/` | Konzepte, Kritik, Bewertung |
 | `docs/decisions/` | Entscheidungen (ADR) |
@@ -56,7 +60,8 @@ Debug-Builds zeigen im Hauptmenü ein Prototyp-Labor mit den geparkten Prototype
 | `docs/art/` | Stilguide „Papiertheater bei Laternenlicht“, Art-Gutachten 0.4 (Kontrast-, Farbsicht-Messungen) |
 | `docs/audio/` | Klang-Bericht (Pegel, Klicks, Bassanteil je Datei) |
 | `docs/compliance/` | Datenschutzerklärung (Entwurf), Data-Safety-Angaben, Werbung und Einwilligung |
-| `docs/store/` | Store-Eintrag (Entwurf), Feature-Grafik |
+| `docs/store/` | Store-Eintrag (Entwurf, DE/EN), Feature-Grafik, Screenshots 1080×1920 |
+| `docs/RELEASE.md` | Leitfaden für den Inhaber: Schlüssel, Bundle, Play-Console-Formulare, Test-Tracks, später echte Werbung |
 | `docs/builds/`, `docs/media/` | APK-Prüfberichte (aapt2/apksigner), Bot-Videos und Kontaktbögen je Version |
 
 ## Lizenz
