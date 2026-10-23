@@ -264,3 +264,137 @@ func test_dawn_bonus_counts_remaining_lives() -> void:
 	assert_eq(sim.state, "over", "last wave ends the night")
 	assert_eq(sim.score - before, sim.core_hp * int(cfg.dawn_bonus_per_life) + int(cfg.get("dawn_bonus", 0)), "dawn bonus")
 	assert_true(sim.stats.dawn, "dawn reached")
+
+
+# --- formations (0.5) --------------------------------------------------------------
+
+func _with_formation(f: String) -> Dictionary:
+	var c := cfg.duplicate(true)
+	c.formations.weights = {f: 1}
+	return c
+
+
+func _wave_of(c: Dictionary, seed_value: int, w: int) -> EchoSim:
+	var sim := EchoSim.new(c, ARENA, seed_value)
+	sim.wave_index = w
+	sim.wave.clear()
+	sim._start_wave()
+	return sim
+
+
+func _groups(sim: EchoSim) -> Dictionary:
+	var g := {}
+	for spec in sim.wave:
+		if spec.has("group"):
+			if not g.has(spec.group):
+				g[spec.group] = []
+			g[spec.group].append(spec)
+	return g
+
+
+func test_every_formation_arrives_within_the_run() -> void:
+	for f in ["streu", "kette", "zange", "regen"]:
+		var c := _with_formation(f)
+		for seed_value in 30:
+			for w in range(1, 5):
+				var sim := _wave_of(c, 700 + seed_value, w)
+				assert_eq(sim.wave_formation, f, "formation forced by its weight")
+				for spec in sim.wave:
+					assert_true(int(spec.tick) >= 0 and sim.arrival_tick(spec) < sim.run_ticks(),
+						"%s: arrives in time (seed %d wave %d)" % [f, seed_value, w])
+
+
+func test_formations_are_deterministic_and_all_occur() -> void:
+	var seen := {}
+	for seed_value in 60:
+		var a := _wave_of(cfg, 300 + seed_value, 2)
+		var b := _wave_of(cfg, 300 + seed_value, 2)
+		assert_eq(a.wave_formation, b.wave_formation, "same seed -> same formation")
+		assert_eq(str(a.wave), str(b.wave), "same seed -> same wave")
+		seen[a.wave_formation] = true
+	for f in ["streu", "kette", "zange", "regen"]:
+		assert_true(seen.has(f), "%s occurs in 60 nights" % f)
+
+
+func test_chain_members_share_a_route_and_keep_their_gap() -> void:
+	var c := _with_formation("kette")
+	var gap := float(c.formations.chain_gap)
+	var chains := 0
+	for seed_value in 20:
+		var sim := _wave_of(c, 40 + seed_value, 2)
+		for members in _groups(sim).values():
+			chains += 1
+			assert_true(members.size() >= 2 and members.size() <= int(c.formations.chain_max), "chain length")
+			for j in range(1, members.size()):
+				var a: Dictionary = members[j - 1]
+				var b: Dictionary = members[j]
+				assert_vec_near(b.from, a.from, 0.01, "same route")
+				assert_near(float(b.speed), float(a.speed), 0.001, "same speed")
+				var at := int(b.tick) + 5
+				var d: float = (sim.enemy_pos_at(a, at) as Vector2).distance_to(sim.enemy_pos_at(b, at))
+				assert_near(d, gap, 3.0, "keeps its gap")
+				assert_true(d * 0.5 < float(c.hit_radius), "a strike between two reaches both")
+	assert_true(chains >= 20, "chains were built (%d)" % chains)
+
+
+func test_a_strike_between_chain_members_hits_both() -> void:
+	var sim := _wave_of(_with_formation("kette"), 41, 2)
+	var pair: Array = _groups(sim).values()[0]
+	var a: Dictionary = pair[0]
+	var b: Dictionary = pair[1]
+	var at := int(b.tick) + 20
+	sim.begin_run([Vector2(sim.arena.position.x + 20, sim.arena.end.y - 20)])  # far away, charged
+	while sim.tick < at:
+		sim.step([Vector2.ZERO])
+	var ea: Dictionary = sim._enemy_by_id(a.id)
+	var eb: Dictionary = sim._enemy_by_id(b.id)
+	sim.live[0].pos = ((ea.pos as Vector2) + (eb.pos as Vector2)) * 0.5
+	sim.step([Vector2.ZERO])
+	assert_false(ea.alive, "first chain member destroyed")
+	assert_false(eb.alive, "second chain member destroyed by the same strike")
+
+
+func test_pincer_pairs_are_mirrored_and_arrive_together() -> void:
+	var c := _with_formation("zange")
+	for seed_value in 20:
+		var sim := _wave_of(c, 60 + seed_value, 3)
+		for members in _groups(sim).values():
+			assert_eq(members.size(), 2, "a pair")
+			var a: Dictionary = members[0]
+			var b: Dictionary = members[1]
+			assert_near(absf(a.from.x - sim.core.x), absf(b.from.x - sim.core.x), 0.01, "mirrored")
+			assert_true(signf(a.from.x - sim.core.x) != signf(b.from.x - sim.core.x), "opposite sides")
+			assert_true(absi(sim.arrival_tick(a) - sim.arrival_tick(b)) <= 1, "arrive together")
+
+
+func test_rain_comes_from_the_top_in_separate_lanes() -> void:
+	var sim := _wave_of(_with_formation("regen"), 77, 4)
+	var xs: Array = []
+	for spec in sim.wave:
+		if spec.type == EchoSim.Type.NORMAL:
+			assert_eq(int(spec.side), 0, "from the top edge")
+			xs.append(float(spec.from.x))
+	xs.sort()
+	for i in range(1, xs.size()):
+		assert_true(xs[i] - xs[i - 1] > 10.0, "own lane")
+
+
+func test_first_night_is_always_scattered() -> void:
+	var c := cfg.duplicate(true)
+	c["first_night"] = true
+	for seed_value in 30:
+		for w in range(1, 5):
+			assert_eq(_wave_of(c, seed_value, w).wave_formation, "streu", "first night: familiar waves")
+
+
+func test_daily_feature_dominates_the_night() -> void:
+	var c := cfg.duplicate(true)
+	c["formation_feature"] = "kette"
+	var hits := 0
+	var total := 0
+	for seed_value in 50:
+		for w in range(1, 5):
+			total += 1
+			if _wave_of(c, 500 + seed_value, w).wave_formation == "kette":
+				hits += 1
+	assert_true(float(hits) / total > 0.5, "featured formation in most waves (%d/%d)" % [hits, total])

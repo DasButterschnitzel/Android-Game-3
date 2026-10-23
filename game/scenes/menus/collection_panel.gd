@@ -43,6 +43,10 @@ func _build() -> void:
 	var unlocks: Dictionary = save.data.unlocks if save else {}
 	box.add_child(_section("Statistik"))
 	box.add_child(_stats_text(stats, save))
+	var history: Array = save.data.history if save else []
+	box.add_child(_section("Letzte Nächte"))
+	box.add_child(HistoryChart.new(history, int(stats.best_score)))
+	box.add_child(UiTheme.label(HistoryChart.summary(history), 24, UiTheme.TEXT_DIM))
 	box.add_child(_section("Laternenpapier"))
 	box.add_child(_papers(unlocks, save))
 	box.add_child(_section("Sternbilder (%d/%d)" % [_count_earned(unlocks), Progression.ACHIEVEMENTS.size()]))

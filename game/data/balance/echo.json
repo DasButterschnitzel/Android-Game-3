@@ -33,6 +33,18 @@
     "twin": 15,
     "armor": 25
   },
+  "formations": {
+    "_comment": "Arrangement of the normal shadows of a wave (twins and armored keep theirs): streu = scattered, kette = chains on one route chain_gap px apart (a strike between two hits both), zange = pairs mirrored left/right arriving together, regen = all from the top. Weights per wave; the daily night multiplies the weight of its featured formation by feature_weight; a player's first night is always streu.",
+    "weights": {
+      "streu": 4,
+      "kette": 2,
+      "zange": 2,
+      "regen": 1
+    },
+    "chain_gap": 46,
+    "chain_max": 3,
+    "feature_weight": 6
+  },
   "waves": [
     {
       "teach": true

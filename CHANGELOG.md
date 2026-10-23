@@ -4,6 +4,27 @@ Alle Builds sind Debug-APKs (Debug-Zertifikat), nicht für den Store bestimmt. �
 automatische Tests, Bot-Simulationen und Linux-Smoke-Test des exportierten Builds. **Kein Build wurde bisher auf
 einem echten Android-Gerät oder Emulator gestartet** (keine KVM-Virtualisierung, kein Gerät in dieser Umgebung).
 
+## 0.5.0 – „Replayability“ (2026-10-23)
+
+### Neu
+- **Wellen-Formationen** (ADR 0005): Streuung, **Kette** (2–3 Schatten auf einer Route – ein Schlag zwischen zweien
+  trifft beide), **Zange** (gespiegelte Paare, gleichzeitige Ankunft), **Regen** (alle von oben). Gewichtet ausgelost,
+  deterministisch; das Wellenbanner nennt die Formation; ein einmaliger Zettel erklärt den Doppeltreffer. Die erste
+  Nacht eines Spielers bleibt Streuung. Bot-Simulation: alle Abnahmekriterien bestanden.
+- **Tagesnacht mit Leitmotiv**: reihum Ketten, Zangen, Regen – im Menü und auf der Ergebniskarte genannt.
+- **Nächstes Sternbild** auf der Ergebniskarte, mit Fortschritt („18 / 25 perfekte Wellen“).
+- **Nacht-Historie**: die letzten Nächte als Balkendiagramm auf der Seite „Sternbilder“, mit Bestwert-Linie und
+  Durchschnitt der letzten 10 (Speicherstand: die letzten 30 Nächte).
+
+### Verbessert
+- **Lehr-Zettel gehen nicht mehr verloren:** Situationshinweise („Zieh irgendwo…“, „Ein Licht schafft nicht
+  beide…“) verfallen mit dem nächsten Lauf; alle anderen bleiben in der Warteschlange, bis sie 1 s sichtbar waren
+  (neuester zuerst). In 0.4 konnte ein neuer Zettel einen ungelesenen älteren endgültig verdrängen (gefunden in einer
+  Aufnahme: der Ketten-Hinweis kam nie).
+- **Leistung:** Die Grafik zeichnet gebündelt (Füllflächen als ein Dreiecks-Array je Ebene, Konturen als Linien,
+  Punkte, Ringe und Symbole aus einem Sprite-Atlas). Draw-Calls je Frame im Bot-Lauf: Median 31–34 statt 190–308,
+  Spitze 42 statt 394 – bei optisch unverändertem Bild (Vergleich in doppelter Vergrößerung).
+
 ## 0.4.0 – „Visual Identity“ (2026-10-23)
 
 Grundlage: unabhängiges Art-Gutachten `docs/art/ART_REVIEW_0.4.md` (Messungen an echten Frames: Kontrast,

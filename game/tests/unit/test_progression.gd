@@ -60,3 +60,43 @@ func test_fullmoon_mode_overrides_base_balance() -> void:
 func test_daily_number_counts_days() -> void:
 	var n := Config.daily_number()
 	assert_true(n >= 1, "today is at least night #1 (%d)" % n)
+
+
+func test_next_goal_names_the_closest_open_sternbild() -> void:
+	var stats: Dictionary = SaveStore.defaults().stats
+	var g := Progression.next_goal(stats, {})
+	assert_eq(g.id, "first_echo", "a fresh player gets the first one-time goal")
+	assert_true(str(g.hint).length() > 10, "with a sentence saying what to do")
+	stats.perfect_waves = 18
+	g = Progression.next_goal(stats, {})
+	assert_eq(g.id, "perfect_25", "a counted goal more than half done comes first")
+	assert_eq(g.hint, "18 / 25 perfekte Wellen", "with its progress")
+	var all := {}
+	for id in Progression.ACHIEVEMENTS:
+		all[id] = true
+	assert_true(Progression.next_goal(stats, all).is_empty(), "nothing left -> no line")
+	for id in Progression.ACHIEVEMENTS:
+		assert_true(str(Progression.ACHIEVEMENTS[id].get("goal", "")) != "", "%s has a goal text" % id)
+
+
+func test_daily_feature_rotates_through_the_formations() -> void:
+	assert_eq([Config.daily_feature(1), Config.daily_feature(2), Config.daily_feature(3), Config.daily_feature(4)],
+		["kette", "zange", "regen", "kette"], "one featured formation per day, in turn")
+	for f in Config.DAILY_FEATURES:
+		assert_true(EchoHud.FORMATION_TITLES.has(f) and EchoHud.FORMATION_HINTS.has(f), "%s has a title and a banner line" % f)
+		assert_true(Config.load_balance("echo").formations.weights.has(f), "%s is a configured formation" % f)
+
+
+func test_chain_hint_comes_with_the_first_chain_wave() -> void:
+	var cfg := Config.load_balance("echo")
+	cfg.formations.weights = {"kette": 1}
+	var sim := EchoSim.new(cfg, Rect2(10, 150, 700, 1110), 5)
+	sim.wave_index = 1
+	sim._start_wave()
+	var onboarding := EchoOnboarding.new(null)
+	var keys: Array = []
+	onboarding.hint.connect(func(k, _t): keys.append(k))
+	onboarding.wave_started(sim)
+	assert_true(keys.has("chain"), "chain wave explains the double strike")
+	onboarding.wave_started(sim)
+	assert_eq(keys.count("chain"), 1, "only once")

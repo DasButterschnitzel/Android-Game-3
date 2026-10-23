@@ -1,7 +1,7 @@
 extends Node
 ## Plays a game scene with a bot through the real touch input pipeline so the
 ## result can be recorded with Godot's movie maker (--write-movie) under Xvfb.
-## User args (after --): scene=<path> profile=<cautious|normal|greedy> seed=<int>
+## User args (after --): scene=<path> profile=<cautious|normal|greedy> seed=<int> played=<nights>
 
 var scene_path := "res://scenes/gameplay/echo_game.tscn"
 var profile := "normal"
@@ -23,6 +23,10 @@ func _ready() -> void:
 			"scene": scene_path = kv[1]
 			"profile": profile = kv[1]
 			"seed": seed_value = int(kv[1])
+			"played":  # pretend earlier nights (first night = scattered waves only)
+				var save := get_node_or_null("/root/Save") as SaveStore
+				if save:
+					save.data.stats.rounds_played = int(kv[1])
 	game = load(scene_path).instantiate()
 	if "seed_override" in game:
 		game.seed_override = seed_value

@@ -182,6 +182,8 @@ func test_lost_night_shows_results_and_restarts() -> void:
 	await frames(2)
 	assert_eq(game.state, "results", "night over")
 	assert_true(game.again_button != null and game.again_button.disabled, "restart briefly locked")
+	var texts: Array = game.ui_layer.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	assert_true(texts.any(func(t): return str(t).begins_with("Nächstes Sternbild: ")), "a next goal on the results card")
 	var old: WeakRef = weakref(game.sim)
 	await get_tree().create_timer(1.4).timeout
 	assert_false(game.again_button.disabled, "restart unlocked")
@@ -290,3 +292,45 @@ func test_a_new_note_fades_in() -> void:
 	assert_true(game.hud._note.modulate.a < 0.5, "first frame of a note is faded (its text is laid out first)")
 	await frames(30)
 	assert_near(game.hud._note.modulate.a, 1.0, 0.01, "fully visible after the fade")
+
+
+func test_first_night_is_familiar_and_the_daily_night_has_its_formation() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	var played: int = save.data.stats.rounds_played
+	save.data.stats.rounds_played = 0
+	game.new_round()
+	assert_true(bool(game.cfg.first_night), "a new player's first night: scattered waves only")
+	save.data.stats.rounds_played = 3
+	game.new_round()
+	assert_false(bool(game.cfg.first_night), "afterwards formations vary")
+	save.data.stats.rounds_played = played
+	game.queue_free()
+	await frames(2)
+	save.data["pending_daily"] = true
+	game = load("res://scenes/gameplay/echo_game.tscn").instantiate()
+	add_child(game)
+	await frames(2)
+	assert_eq(str(game.cfg.get("formation_feature", "")), Config.daily_feature(), "daily night features today's formation")
+	assert_false(bool(game.cfg.first_night), "the daily night is the same for everyone")
+	save.data["pending_daily"] = false
+
+
+func test_unread_notes_come_back_and_situational_ones_expire() -> void:
+	(get_node("/root/Save") as SaveStore).data.onboarding["echo"] = true
+	game.hud.show_hint("So startest du", 0.0, true)
+	game.hud.show_hint("Wissen A")
+	await frames(3)
+	assert_eq(game.hud._note_text, "Wissen A", "newest first")
+	start_run_and_release()  # quickly, nothing read
+	await physics_frames(3)
+	game.hud.show_hint("Wissen B")
+	await wait_run_end()
+	await frames(10)
+	assert_eq(game.hud.note_text(), "Wissen B", "the newest note at the next break")
+	await get_tree().create_timer(1.3).timeout  # read
+	await frames(10)
+	assert_eq(game.hud.note_text(), "Wissen A", "the unread older note follows, not lost")
+	await get_tree().create_timer(1.3).timeout
+	await frames(10)
+	assert_eq(game.hud.note_text(), "Wissen A", "a read note may stay until the next run")
+	assert_true(game.hud._queued.is_empty(), "the situational note expired with the run")

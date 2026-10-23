@@ -4,18 +4,18 @@ extends RefCounted
 ## earned by playing well, never bought and never needed to win.
 ## Evaluated once per finished night from its result and the lifetime stats.
 
-## id -> {name, text, test}
+## id -> {name, text (earned), goal (still open)}
 const ACHIEVEMENTS := {
-	"first_echo": {"name": "Erstes Echo", "text": "Eine Welle mit Hilfe eines Echos perfekt verteidigt."},
-	"dawn": {"name": "Morgengrauen", "text": "Eine Nacht überstanden."},
-	"dawn_full": {"name": "Alle Flammen", "text": "Das Morgengrauen mit allen drei Flammen erreicht."},
-	"solo_wave": {"name": "Allein", "text": "Eine Welle mit nur einem Licht perfekt verteidigt."},
-	"score_1000": {"name": "Tausend", "text": "1.000 Punkte in einer Nacht."},
-	"score_1500": {"name": "Leuchtfeuer", "text": "1.500 Punkte in einer Nacht."},
-	"perfect_25": {"name": "Ruhige Hand", "text": "25 perfekte Wellen insgesamt."},
-	"nights_10": {"name": "Nachtwache", "text": "10 Nächte gespielt."},
-	"daily": {"name": "Tagesnacht", "text": "Eine Tagesnacht gespielt."},
-	"duo": {"name": "Zwei Hände", "text": "Mit einem zweiten Finger ein zweites Licht entzündet."},
+	"first_echo": {"name": "Erstes Echo", "text": "Eine Welle mit Hilfe eines Echos perfekt verteidigt.", "goal": "Verteidige eine Welle mit Hilfe eines Echos perfekt."},
+	"dawn": {"name": "Morgengrauen", "text": "Eine Nacht überstanden.", "goal": "Halte die Laterne bis zum Morgengrauen am Leben."},
+	"dawn_full": {"name": "Alle Flammen", "text": "Das Morgengrauen mit allen drei Flammen erreicht.", "goal": "Erreiche das Morgengrauen mit allen drei Flammen."},
+	"solo_wave": {"name": "Allein", "text": "Eine Welle mit nur einem Licht perfekt verteidigt.", "goal": "Verteidige eine Welle mit nur einem Licht perfekt."},
+	"score_1000": {"name": "Tausend", "text": "1.000 Punkte in einer Nacht.", "goal": "Erreiche 1.000 Punkte in einer Nacht."},
+	"score_1500": {"name": "Leuchtfeuer", "text": "1.500 Punkte in einer Nacht.", "goal": "Erreiche 1.500 Punkte in einer Nacht."},
+	"perfect_25": {"name": "Ruhige Hand", "text": "25 perfekte Wellen insgesamt.", "goal": "Verteidige insgesamt 25 Wellen perfekt."},
+	"nights_10": {"name": "Nachtwache", "text": "10 Nächte gespielt.", "goal": "Spiele 10 Nächte."},
+	"daily": {"name": "Tagesnacht", "text": "Eine Tagesnacht gespielt.", "goal": "Spiele eine Tagesnacht."},
+	"duo": {"name": "Zwei Hände", "text": "Mit einem zweiten Finger ein zweites Licht entzündet.", "goal": "Entzünde mit einem zweiten Finger ein zweites Licht."},
 }
 
 ## Lantern papers: id -> {name, paper, rib, unlock (achievement id or "" = always)}
@@ -48,6 +48,41 @@ static func evaluate(round: Dictionary, stats: Dictionary, unlocks: Dictionary) 
 	check.call("daily", bool(round.get("daily", false)))
 	check.call("duo", bool(round.get("duo", false)))
 	return earned
+
+
+## The closest open Sternbild as a concrete next goal for the results card:
+## a counted one ("18/25 perfekte Wellen") once it is at least half done,
+## otherwise the first open one-time goal, otherwise the best counted one.
+## {} when everything is unlocked.
+static func next_goal(stats: Dictionary, unlocks: Dictionary) -> Dictionary:
+	var best := int(stats.get("best_score", 0))
+	var counted := {
+		"perfect_25": [int(stats.get("perfect_waves", 0)), 25, "perfekte Wellen"],
+		"nights_10": [int(stats.get("rounds_played", 0)), 10, "Nächte"],
+		"score_1000": [best, 1000, "Punkte (Bestwert)"],
+		"score_1500": [best, 1500, "Punkte (Bestwert)"],
+	}
+	var top := ""
+	var top_p := -1.0
+	for id in counted:
+		if unlocks.has(id):
+			continue
+		var p := float(counted[id][0]) / float(counted[id][1])
+		if p > top_p:
+			top_p = p
+			top = id
+	var counted_goal := func(id: String) -> Dictionary:
+		var c: Array = counted[id]
+		return {"id": id, "name": ACHIEVEMENTS[id].name,
+			"hint": "%s / %s %s" % [EchoHud.fmt(mini(int(c[0]), int(c[1]))), EchoHud.fmt(int(c[1])), c[2]]}
+	if top != "" and top_p >= 0.5:
+		return counted_goal.call(top)
+	for id in ["first_echo", "solo_wave", "dawn", "duo", "daily", "dawn_full"]:
+		if not unlocks.has(id):
+			return {"id": id, "name": ACHIEVEMENTS[id].name, "hint": ACHIEVEMENTS[id].goal}
+	if top != "":
+		return counted_goal.call(top)
+	return {}
 
 
 static func paper_unlocked(id: String, unlocks: Dictionary) -> bool:

@@ -66,3 +66,21 @@ func test_every_screen_answers_the_back_button() -> void:
 		assert_true(flow.handle_back(), "handled")
 		await frames(1)
 		assert_false(is_instance_valid(panel), "%s closed" % name)
+
+
+func test_sternbilder_page_shows_the_last_nights() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	var before: Array = (save.data.history as Array).duplicate(true)
+	save.data.history = [{"s": 800, "w": 4, "d": false, "m": "", "q": false}, {"s": 1250, "w": 5, "d": true, "m": "", "q": true}]
+	var panel := CollectionPanel.new()
+	menu.add_child(panel)
+	await frames(2)
+	var charts := panel.find_children("*", "HistoryChart", true, false)
+	assert_eq(charts.size(), 1, "history chart on the page")
+	if charts.size() == 1:
+		assert_eq((charts[0] as HistoryChart).nights.size(), 2, "with the recorded nights")
+		assert_true((charts[0] as Control).size.x > 300.0, "laid out across the page")
+	var texts: Array = panel.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	assert_true(texts.has("Ø der letzten 2: 1.025 · Morgengrauen 1 von 2"), "summary line")
+	panel.queue_free()
+	save.data.history = before

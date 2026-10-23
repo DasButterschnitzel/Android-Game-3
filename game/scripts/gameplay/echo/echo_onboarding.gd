@@ -20,6 +20,7 @@ const HINTS := {
 	"leak": "Wer durchkommt, kostet beim Kassieren eine Flamme. Ohne Flammen ist die Nacht vorbei.",
 	"twins": "Zwillinge: Triff beide fast gleichzeitig – mit zwei verschiedenen Lichtern.",
 	"armor": "Gepanzert: braucht Treffer von zwei verschiedenen Lichtern.",
+	"chain": "Kette: Ein Schlag trifft alle Schatten in seiner Nähe. Führ dein Licht zwischen zwei Glieder – dann fallen beide.",
 	"second": "Profi-Tipp: Ein zweiter Finger entzündet ein zweites Licht (kostet wie ein Lauf).",
 }
 
@@ -62,6 +63,9 @@ func wave_started(sim: EchoSim) -> void:
 			show("twins")
 		"armor":
 			show("armor")
+		_:
+			if sim.wave_formation == "kette":
+				show("chain")
 
 
 func run_started(sim: EchoSim) -> void:

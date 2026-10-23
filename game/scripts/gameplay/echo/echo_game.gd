@@ -62,6 +62,8 @@ func _ready() -> void:
 		daily = bool(save.data.get("pending_daily", false))
 		mode = "" if daily else str(save.data.get("pending_mode", ""))
 	cfg = Config.load_mode("echo", mode)
+	if daily:
+		cfg["formation_feature"] = Config.daily_feature()  # the same for everyone today
 	if save:
 		effects = float(save.get_setting("effects"))
 		sensitivity = float(save.get_setting("sensitivity"))
@@ -121,6 +123,7 @@ func new_round() -> void:
 		round_seed = seed_override + round_index
 	else:
 		round_seed = int(Time.get_unix_time_from_system()) * 1000 + round_index
+	cfg["first_night"] = not daily and _rounds_played() == 0  # familiar scattered waves first
 	sim = EchoSim.new(cfg, arena(), round_seed)
 	_connect_sim()
 	view.setup(sim, round_seed)
@@ -139,7 +142,7 @@ func new_round() -> void:
 	state = "play"
 	_close_overlay()
 	onboarding.round_started(sim, save.data.stats.rounds_played if save else 0)
-	hud.wave_banner(sim.wave_index, sim.waves_per_round(), "")
+	hud.wave_banner(sim.wave_index, sim.waves_per_round(), "", sim.wave_formation)
 	_update_bank_button()
 
 
@@ -168,7 +171,7 @@ func _connect_sim() -> void:
 		ready_pos = sim.start_pos
 		view.wave_started()
 		var tag := str(sim.wave_def.get("announce", ""))
-		hud.wave_banner(w, sim.waves_per_round(), tag)
+		hud.wave_banner(w, sim.waves_per_round(), tag, sim.wave_formation)
 		onboarding.wave_started(sim))
 	sim.game_over.connect(_on_game_over)
 
@@ -345,7 +348,7 @@ func _on_hint(key: String, text: String) -> void:
 			if not sim.live.is_empty():
 				view.light_label(int(sim.live[0].id), text, EchoView.LIVE_COL, 24, 1.5, 40.0)
 		_:
-			hud.show_hint(text)
+			hud.show_hint(text, 0.0, key in ["start", "alone"])  # about this moment only
 
 
 func _on_bank_pressed() -> void:
@@ -500,7 +503,7 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	if survived:
 		lines += "\nFlammen am Morgen: %d (+%d)" % [sim.core_hp, sim.dawn_bonus()]
 	if daily:
-		lines = "Tagesnacht #%d\n" % Config.daily_number() + lines
+		lines = "Tagesnacht #%d · %s\n" % [Config.daily_number(), EchoHud.FORMATION_TITLES[Config.daily_feature()]] + lines
 	elif mode == "fullmoon":
 		lines = "Vollmond\n" + lines
 	o.add_child(UiTheme.label(lines, 26, UiTheme.TEXT_DIM, true))
@@ -509,6 +512,11 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 		o.add_child(UiTheme.label("Sternbild: %s" % a.name, 26, UiTheme.ACCENT, true))
 	for pid in Progression.papers_for(earned):
 		o.add_child(UiTheme.label("Neues Laternenpapier: %s" % Progression.PAPERS[pid].name, 24, UiTheme.GOOD, true))
+	if save:
+		# A concrete next goal (no timer, no pressure): the closest open Sternbild.
+		var goal := Progression.next_goal(save.data.stats, save.data.unlocks)
+		if not goal.is_empty():
+			o.add_child(UiTheme.label("Nächstes Sternbild: %s\n%s" % [goal.name, goal.hint], 22, UiTheme.TEXT_DIM))
 	var again := UiTheme.primary_button("Nochmal")
 	again.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	again.pressed.connect(_on_again)

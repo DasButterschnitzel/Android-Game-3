@@ -10,6 +10,7 @@ signal changed(key: String)
 
 const SCHEMA_VERSION := 2
 const DEFAULT_PATH := "user://save.json"
+const HISTORY_SIZE := 30  # nights kept for the chart on the Sternbilder page
 
 var path := DEFAULT_PATH
 var data: Dictionary = {}
@@ -52,6 +53,7 @@ static func defaults() -> Dictionary:
 			"lunte_best": 0,  # parked prototype, debug lab only
 		},
 		"unlocks": {},
+		"history": [],  # last nights, newest last: {s: score, w: waves banked, d: dawn, m: mode, q: daily}
 		"onboarding": {},  # hint key -> true once shown
 		"pending_daily": false,
 		"pending_mode": "",  # "" normal night, "fullmoon"
@@ -185,6 +187,11 @@ func record_echo_round(score: int, round_stats: Dictionary, duration: float, dai
 		is_best = score > s.best_score
 		if is_best:
 			s.best_score = score
+	var h: Array = data.history
+	h.append({"s": score, "w": int(round_stats.get("waves_banked", 0)), "d": bool(round_stats.get("dawn", false)),
+		"m": mode, "q": daily})
+	while h.size() > HISTORY_SIZE:
+		h.pop_front()
 	if daily:
 		var today := Time.get_date_string_from_system()
 		var d: Dictionary = data.daily

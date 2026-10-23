@@ -85,3 +85,29 @@ func test_daily_best_is_kept_per_day() -> void:
 	assert_eq(store.data.daily.best, 300, "best of the day")
 	assert_eq(store.data.daily.played, 2, "rounds of the day")
 	assert_eq(store.data.daily.date, Time.get_date_string_from_system(), "today")
+
+
+func test_history_keeps_the_last_nights() -> void:
+	store.load_from_disk()
+	for i in SaveStore.HISTORY_SIZE + 5:
+		store.record_echo_round(100 + i, {"waves_banked": 3, "dawn": i % 2 == 0}, 60.0, i % 3 == 0, "")
+	var h: Array = store.data.history
+	assert_eq(h.size(), SaveStore.HISTORY_SIZE, "capped")
+	assert_eq(int(h[h.size() - 1].s), 100 + SaveStore.HISTORY_SIZE + 4, "newest last")
+	assert_eq(int(h[0].s), 105, "oldest dropped")
+	store.save_now()
+	var other := SaveStore.new()
+	other.path = TEST_PATH
+	other.load_from_disk()
+	assert_eq((other.data.history as Array).size(), SaveStore.HISTORY_SIZE, "survives a reload")
+	assert_eq(HistoryChart.summary(other.data.history).begins_with("Ø der letzten 10:"), true, "summary line")
+	other.free()
+
+
+func test_saves_from_0_4_get_an_empty_history() -> void:
+	var f := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": 2, "stats": {"best_score": 700, "rounds_played": 4}}))
+	f.close()
+	store.load_from_disk()
+	assert_eq(store.data.stats.best_score, 700, "progress kept")
+	assert_eq((store.data.history as Array).size(), 0, "history starts empty")

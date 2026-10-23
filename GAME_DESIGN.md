@@ -51,6 +51,12 @@ Typ über **Form**, Farbe nur als zweiter Kanal (farbsehschwäche-sicher, geprü
 | 4 | 4 normale + Zwillinge + 1 gepanzerter | zwei Lichter auf ein Ziel |
 | 5 | 5 normale + Zwillinge + 2 gepanzerte | alles zusammen |
 
+**Formationen (ab 0.5, ADR 0005):** Die normalen Schatten einer Welle kommen in einer von vier Anordnungen –
+*Streuung* (zufällig verteilt), *Kette* (2–3 auf einer Route, 46 px Abstand: ein Schlag zwischen zweien trifft beide),
+*Zange* (Paare links/rechts gespiegelt, gleichzeitige Ankunft), *Regen* (alle von oben, eigene Bahnen). Gewichte 4/2/2/1,
+deterministisch je Seed und Welle; das Wellenbanner nennt die Formation. Die erste Nacht eines Spielers ist immer
+Streuung, damit das Onboarding ungestört bleibt. Bot-Belege: `docs/playtests/ECHO_SIM.md` Teil C.
+
 ## 4. Warum es nicht trivial wird (Bot-Belege, keine Menschen)
 - Planen schlägt Reagieren: Ein reaktiver Bot erreicht 23–25 % des Planers.
 - Echos sind nötig: Allein-Kassieren erreicht 37–39 % (Grenze 40 %).
@@ -73,7 +79,7 @@ Typ über **Form**, Farbe nur als zweiter Kanal (farbsehschwäche-sicher, geprü
 Die Lehr-Welle lehrt selbst. Hinweise erscheinen einmalig im Moment, in dem sie gebraucht werden (gespeichert);
 als Zettel in der nächsten Pause, wobei der neueste gewinnt (ein Zettel gilt erst nach 1 s Sichtbarkeit als gelesen):
 Steuerung → „Ein Licht schafft nicht beide“ → „Dein Echo wiederholt Weg und Treffer“ → Nachglühen → Kassieren →
-Flammen → Zwillinge → Gepanzerte → Profi-Tipp zweiter Finger. In der allerersten Lehr-Welle wird der
+Flammen → Zwillinge → Gepanzerte → Ketten (Doppeltreffer) → Profi-Tipp zweiter Finger. In der allerersten Lehr-Welle wird der
 Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 
 ## 7. Ton (Funktion, nicht Deko)
@@ -85,7 +91,12 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 - Vollständig spielbar ohne Ton; alles Hörbare ist auch sichtbar.
 
 ## 8. Wiederspielwert ohne Dark Patterns
-- Tagesnacht (gleicher Seed für alle am selben Tag, fortlaufende Nummer, eigener Tagesbestwert, offline).
+- Tagesnacht (gleicher Seed für alle am selben Tag, fortlaufende Nummer, eigener Tagesbestwert, offline) mit
+  **Leitmotiv**: reihum Ketten, Zangen oder Regen – im Menü angekündigt, kein Streak, keine Strafe fürs Auslassen.
+- **Nächstes Ziel** auf der Ergebniskarte: das nächstliegende offene Sternbild mit Fortschritt („18 / 25 perfekte
+  Wellen“) – konkret, ohne Uhr und ohne Druck.
+- **Nacht-Historie** auf der Seite „Sternbilder“: die letzten 15 Nächte als Balken (warm = Morgengrauen), Bestwert-Linie,
+  Durchschnitt der letzten 10 – Fortschritt sichtbar machen statt Tage zählen.
 - Persönlicher Bestwert je Modus, Statistiken auf der Seite „Sternbilder“.
 - **Sternbilder** (10 Achievements) schalten **rein kosmetische** Laternenpapiere frei – kein Spielvorteil.
 - **Vollmond** (schwerer, freigeschaltet durch das erste Morgengrauen) als Ziel für Geübte.
@@ -104,3 +115,4 @@ Kassieren-Button erst angeboten, nachdem man ein Echo gesehen hat.
 3. Fühlt sich Nachglühen fair an, wenn das Licht durch einen Schatten gleitet?
 4. Relative Steuerung auf 6"-Displays: Empfindlichkeit, Ermüdung.
 5. Lesbarkeit bei Lauf 4–6 (viele Echos).
+6. Werden Ketten als „Trick“ (Schlag zwischen zwei Glieder) entdeckt, oder fühlen sie sich nur dichter an?

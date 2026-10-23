@@ -62,6 +62,8 @@ func _ready() -> void:
 	box.add_child(play)
 	var daily := UiTheme.button(_daily_text())
 	daily.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	if daily.text.length() > 24:
+		daily.add_theme_font_size_override("font_size", 26)
 	daily.pressed.connect(func(): _start(true, ""))
 	box.add_child(daily)
 	# Harder mode, unlocked by surviving one night (a goal, not a purchase).
@@ -95,7 +97,7 @@ func _ready() -> void:
 
 func _daily_text() -> String:
 	var save := _save()
-	var title := "Tagesnacht #%d" % Config.daily_number()
+	var title := "Tagesnacht #%d · %s" % [Config.daily_number(), EchoHud.FORMATION_TITLES[Config.daily_feature()]]
 	if save and save.data.daily.date == Time.get_date_string_from_system() and int(save.data.daily.played) > 0:
 		return "%s · heute %s" % [title, EchoHud.fmt(int(save.data.daily.best))]
 	return title

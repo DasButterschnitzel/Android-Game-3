@@ -89,3 +89,31 @@ Seeds 7000–7029, 600 px/s:
 
 Alle Kriterien bestanden (E1 0,386 · C1 0,274 · T1 100 % · T2 92 % · L1). Deutlich schwerer: frühes Kassieren
 erreicht nur noch in zwei Dritteln der Nächte das Morgengrauen.
+
+## Teil C – Wellen-Formationen (0.5, ADR 0005)
+
+Normale Schatten einer Welle kommen jetzt in einer von vier Anordnungen (Gewicht in `echo.json → formations`):
+**Streuung** 4 (wie bisher), **Kette** 2 (2–3 Schatten auf einer Route, 46 px Abstand: ein Schlag zwischen zweien
+trifft beide), **Zange** 2 (Paare links/rechts gespiegelt, gleichzeitige Ankunft), **Regen** 1 (alle von oben, je
+eine eigene Bahn). Die Tagesnacht hebt eine Formation hervor (Gewicht ×6). Die allererste Nacht eines Spielers ist
+immer Streuung. Seeds 7000–7039, 600 px/s, Median (p10):
+
+| Einstellung | perfect | early | sector | solo | chaser | Morgengrauen perfect / early | Rundenlänge Planer | Zwillinge |
+|---|---|---|---|---|---|---|---|---|
+| nur Streuung (= 0.4) | 1.375 (1.215) | 1.255 (1.085) | 720 | 540 | 340 | 100 % / 78 % | 78–90 s | 96–97 % |
+| gemischt (Standard) | 1.410 (1.215) | 1.305 (1.105) | 728 | 540 | 340 | 100 % / 85 % | 79–88 s | 97 % |
+| Tagesnacht „Ketten“ | 1.410 (990) | 1.305 (575) | 680 | 540 | 340 | 100 % / 72 % | 78–89 s | 93 % |
+| Tagesnacht „Zangen“ | 1.445 (1.085) | 1.305 (870) | 790 | 540 | 340 | 100 % / 75 % | 76–87 s | 94 % |
+| Tagesnacht „Regen“ | 1.375 (1.150) | 1.255 (1.010) | 680 | 540 | 340 | 100 % / 80 % | 78–88 s | 96 % |
+
+Alle sechs Kriterien in allen fünf Einstellungen bestanden (E1 0,37–0,39 · C1 0,24–0,25 · T1 100 % · T2 93–97 % ·
+L1 76–90 s · E2 perfect + early). Befehl: `sim_echo.gd -- 40 7000 600 '<overrides>'`, z. B.
+`'{"formation_feature": "kette"}'`.
+
+**Vollmond mit Formationen** (Seeds 7000–7029): perfect 1.600 · early 1.470 · sector 530 · solo 600 · chaser 425;
+Morgengrauen perfect 100 % / early 73 %; Rundenlänge Planer 94–107 s; Zwillinge 94 %. Alle Kriterien bestanden
+(E1 0,375 · C1 0,266 · T2 94 % · L1).
+
+Einschätzung (Hypothesen): Ketten machen Nächte **streuender** (p10 von early fällt auf 575), nicht im Mittel
+schwerer – wer frühe Kettenglieder durchlässt, verliert schnell Flammen. Der Bot nutzt Doppeltreffer nicht gezielt;
+Menschen, die den Schlag zwischen zwei Kettenglieder lernen, sollten besser abschneiden (Gerätetest-Frage).

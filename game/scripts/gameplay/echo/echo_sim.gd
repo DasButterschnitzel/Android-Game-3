@@ -41,6 +41,10 @@ var start_pos: Vector2
 var wave_index := 0
 var wave: Array = []  # specs: {id, tick, from, speed, type, twin, side}
 var wave_def: Dictionary = {}
+## Arrangement of the wave's normal shadows: streu (scattered), kette (chains on
+## one route, a strike between two hits both), zange (pairs mirrored left and
+## right, arriving together), regen (all from the top). "" for the teaching wave.
+var wave_formation := ""
 var run_index := 0
 ## Recorded lights of this wave: {id, path: PackedVector2Array, strikes: PackedInt32Array, run}
 var echoes: Array = []
@@ -123,8 +127,10 @@ func _start_wave() -> void:
 	var defs: Array = cfg.waves
 	wave_def = defs[mini(wave_index, defs.size() - 1)]
 	if wave_def.get("teach", false):
+		wave_formation = ""
 		_build_teaching_wave()
 	else:
+		wave_formation = _pick_formation(rng)
 		_build_wave(rng)
 	state = "ready"
 	wave_started.emit(wave_index)
@@ -146,44 +152,140 @@ func _build_teaching_wave() -> void:
 		id += 1
 
 
+## Forced by the wave definition, or drawn by weight; the daily night features one
+## formation (its weight multiplied) and a player's very first night is scattered.
+func _pick_formation(rng: RandomNumberGenerator) -> String:
+	if wave_def.has("formation"):
+		return str(wave_def.formation)
+	var f: Dictionary = cfg.get("formations", {})
+	if f.is_empty() or bool(cfg.get("first_night", false)):
+		return "streu"
+	var weights: Dictionary = f.get("weights", {"streu": 1})
+	var feature := str(cfg.get("formation_feature", ""))
+	var boost := float(f.get("feature_weight", 1.0))
+	var total := 0.0
+	for k in weights:
+		total += float(weights[k]) * (boost if k == feature else 1.0)
+	var x := rng.randf() * total
+	for k in weights:
+		x -= float(weights[k]) * (boost if k == feature else 1.0)
+		if x <= 0.0:
+			return str(k)
+	return "streu"
+
+
 func _build_wave(rng: RandomNumberGenerator) -> void:
-	# Slots in arrival order: twins arrive together as one slot.
+	# Slots in arrival order: twins, chains and pincer pairs arrive as one slot.
+	var normals := int(wave_def.get("normal", 0))
 	var slots: Array = []
-	for i in int(wave_def.get("normal", 0)):
-		slots.append(Type.NORMAL)
+	match wave_formation:
+		"kette":
+			for size in chain_sizes(normals, int(cfg.get("formations", {}).get("chain_max", 3))):
+				slots.append(["chain", size] if size > 1 else ["one", Type.NORMAL])
+		"zange":
+			for i in normals / 2:
+				slots.append(["pair", 2])
+			if normals % 2 == 1:
+				slots.append(["one", Type.NORMAL])
+		_:
+			for i in normals:
+				slots.append(["one", Type.NORMAL])
 	for i in int(wave_def.get("twins", 0)):
-		slots.append(Type.TWIN)
+		slots.append(["twin", 2])
 	for i in int(wave_def.get("armor", 0)):
-		slots.append(Type.ARMOR)
+		slots.append(["one", Type.ARMOR])
 	# Deterministic shuffle.
 	for i in range(slots.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp = slots[i]
 		slots[i] = slots[j]
 		slots[j] = tmp
+	# Rain: one lane of the top edge per shadow, in shuffled order.
+	var lanes: Array = range(normals)
+	for i in range(lanes.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = lanes[i]
+		lanes[i] = lanes[j]
+		lanes[j] = tmp
 	var t0 := float(cfg.arrive_from)
 	var span := float(cfg.arrive_until) - t0
 	var id := 0
+	var lane := 0
 	for k in slots.size():
 		# Stratified arrival times keep the wave spread over the whole run.
 		var arrive := t0 + span * (k + rng.randf_range(0.15, 0.85)) / slots.size()
-		var t: int = slots[k]
-		if t == Type.TWIN:
-			var left_first := rng.randf() < 0.5
-			var a := _edge_point(-1 if left_first else 1, rng.randf_range(0.15, 0.7))
-			var b := _edge_point(1 if left_first else -1, rng.randf_range(0.15, 0.7))
-			wave.append(_spec(id, a, arrive, Type.TWIN, id + 1, rng))
-			wave.append(_spec(id + 1, b, arrive, Type.TWIN, id, rng))
-			id += 2
-		else:
-			var side := rng.randi_range(-1, 1)
-			wave.append(_spec(id, _edge_point(side, rng.randf_range(0.0, 0.75)), arrive, t, -1, rng))
-			id += 1
+		var slot: Array = slots[k]
+		match slot[0]:
+			"twin":
+				var left_first := rng.randf() < 0.5
+				var a := _edge_point(-1 if left_first else 1, rng.randf_range(0.15, 0.7))
+				var b := _edge_point(1 if left_first else -1, rng.randf_range(0.15, 0.7))
+				wave.append(_spec(id, a, arrive, Type.TWIN, id + 1, rng))
+				wave.append(_spec(id + 1, b, arrive, Type.TWIN, id, rng))
+				id += 2
+			"chain":
+				id = _add_chain(id, int(slot[1]), arrive, rng)
+			"pair":
+				id = _add_pair(id, arrive, rng)
+			_:
+				var t: int = slot[1]
+				var from: Vector2
+				if wave_formation == "regen" and t == Type.NORMAL:
+					var n := maxi(normals, 1)
+					from = _edge_point(0, (float(lanes[lane]) + rng.randf_range(0.2, 0.8)) / n * 0.75)
+					lane += 1
+				else:
+					from = _edge_point(rng.randi_range(-1, 1), rng.randf_range(0.0, 0.75))
+				wave.append(_spec(id, from, arrive, t, -1, rng))
+				id += 1
 
 
-func _spec(id: int, from: Vector2, arrive: float, type: int, twin: int, rng: RandomNumberGenerator) -> Dictionary:
+## Chain lengths for n shadows (at most max_len, never a single one left over).
+static func chain_sizes(n: int, max_len: int) -> Array:
+	var out := []
+	var left := n
+	while left > 0:
+		var size := mini(max_len, left)
+		if left - size == 1 and size > 2:
+			size -= 1
+		out.append(size)
+		left -= size
+	return out
+
+
+## m shadows in a row on one route, chain_gap px apart at the same speed: a
+## strike between two of them hits both (hit_radius > chain_gap / 2).
+func _add_chain(id: int, m: int, arrive: float, rng: RandomNumberGenerator) -> int:
+	var gap := float(cfg.get("formations", {}).get("chain_gap", 46.0))
+	var from := _edge_point(rng.randi_range(-1, 1), rng.randf_range(0.05, 0.7))
+	var speed := float(cfg.enemy_speed) * rng.randf_range(0.9, 1.1)
+	var lead := minf(arrive, float(cfg.arrive_until) - (m - 1) * gap / speed)
+	var first := _spec(id, from, lead, Type.NORMAL, -1, rng, speed)
+	first["group"] = id
+	wave.append(first)
+	for j in range(1, m):
+		var follower := _spec(id + j, from, lead + j * gap / float(first.speed), Type.NORMAL, -1, rng, float(first.speed))
+		follower["group"] = id
+		wave.append(follower)
+	return id + m
+
+
+## Pincer: two shadows mirrored left and right that arrive together.
+func _add_pair(id: int, arrive: float, rng: RandomNumberGenerator) -> int:
+	var along := rng.randf_range(0.1, 0.7)
+	var speed := float(cfg.enemy_speed) * rng.randf_range(0.9, 1.1)
+	var a := _spec(id, _edge_point(-1, along), arrive, Type.NORMAL, -1, rng, speed)
+	var b := _spec(id + 1, _edge_point(1, along), arrive, Type.NORMAL, -1, rng, float(a.speed))
+	a["group"] = id
+	b["group"] = id
+	wave.append(a)
+	wave.append(b)
+	return id + 2
+
+
+func _spec(id: int, from: Vector2, arrive: float, type: int, twin: int, rng: RandomNumberGenerator, fixed_speed := -1.0) -> Dictionary:
 	var dist := from.distance_to(core) - float(cfg.core_radius)
-	var speed := float(cfg.enemy_speed) * rng.randf_range(0.85, 1.2)
+	var speed := fixed_speed if fixed_speed > 0.0 else float(cfg.enemy_speed) * rng.randf_range(0.85, 1.2)
 	if type == Type.ARMOR:
 		speed *= 0.8  # armored shadows are heavier and slower
 	var spawn := arrive - dist / speed
@@ -485,6 +587,7 @@ func fork() -> EchoSim:
 	f.wave_index = wave_index
 	f.wave = wave.duplicate()
 	f.wave_def = wave_def
+	f.wave_formation = wave_formation
 	f.echoes = echoes.duplicate()
 	f.start_pos = start_pos
 	f.probe = true

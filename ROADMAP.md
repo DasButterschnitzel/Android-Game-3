@@ -10,7 +10,7 @@ er bleibt vor jeder Veröffentlichung Pflicht.
 | 0.2 | Mechanics | NACHHALL-Regeln (Nachglühen, Echo-Treffer, Lichter-Multiplikator), Spielszene, Startring, Kassieren, zweiter Finger, Pause/Ergebnis | erledigt (2026-10-23) |
 | 0.3 | Game Feel | eigener Kanon-Klangsatz, Sekundentakt, Animationen (Geister, Laterne, Schweife, Punkteflug), Empfindlichkeit | erledigt (2026-10-23) |
 | 0.4 | Visual Identity | Papier-Kunst überarbeitet, UI-Panels im Stil, Lesbarkeit/Kontrast, farbenblind-sichere Formen, Store-Grafiken | erledigt (2026-10-23); vorgezogen: Sternbilder, Laternenpapiere, Vollmond, Tagesnacht-Nummer |
-| 0.5 | Replayability | Tagesnacht ausgebaut, Statistik-Seite, kosmetische Freischaltungen, Wellen-Varianten, „Vollmond“-Schwierigkeit | in Arbeit (Grundlagen in 0.4) |
+| 0.5 | Replayability | Wellen-Formationen (Kette, Zange, Regen), Tagesnacht mit Leitmotiv, nächstes Ziel auf der Ergebniskarte, Nacht-Historie; dazu Draw-Call-Optimierung (aus 0.7 vorgezogen) | erledigt (2026-10-23) |
 | 0.6 | Monetization Preview | modularer `AdService` (Mock + Test-Anzeigen-Adapter), Einwilligungsablauf, Interstitial nur an natürlichen Pausen, optionales Rewarded, Offline-Verhalten, Datenschutz-/Data-Safety-Entwürfe | geplant |
 | 0.7 | Polish | Leistung, Barrierefreiheit, Fehlerbehebung, UI-/Audio-Politur | geplant |
 | 0.8 | Release Candidate | Lebenszyklus-Tests, Store-Konfiguration (Release-Signatur durch Inhaber), Dokumentation, Abschlussbericht | geplant |

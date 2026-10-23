@@ -8,6 +8,10 @@ extends Control
 
 signal pause_pressed
 
+## Names and banner lines of the wave formations (EchoSim.wave_formation).
+const FORMATION_TITLES := {"streu": "Streuung", "kette": "Ketten", "zange": "Zangen", "regen": "Regen"}
+const FORMATION_HINTS := {"kette": "Kette – ein Schlag kann zwei treffen", "zange": "Zange – von beiden Seiten zugleich",
+	"regen": "Regen – alle von oben"}
 const NOTE_BG := Color("#f3e6cc")
 const NOTE_INK := Color("#22162e")
 const NOTE_EDGE := Color("#cbb48c")
@@ -20,8 +24,10 @@ var _score_pop := 0.0
 var _pause: Button
 var _note: Label
 var _note_text := ""
+var _note_transient := false  # about this very moment ("how to start"): gone once a run starts
 var _note_seen := 0.0  # seconds the current note was fully visible
-var _queued: Array[String] = []
+var _queued: Array = []  # [text, transient], oldest first
+var _was_calm := false
 var _banner := ""
 var _banner_sub := ""
 var _banner_alpha := 0.0
@@ -79,11 +85,16 @@ func pause_button_rect() -> Rect2:
 
 
 ## A teaching text. Waits for the next break if a run is in progress.
-func show_hint(text: String, _seconds := 0.0) -> void:
-	if text == "":
+## `transient` notes describe the current situation ("how to start", "one light is
+## not enough") and expire when the next run starts, read or not. All others
+## wait in the queue until they have been on screen for a second.
+func show_hint(text: String, _seconds := 0.0, transient := false) -> void:
+	if text == "" or text == _note_text:
 		return
-	if not _queued.has(text) and _note_text != text:
-		_queued.append(text)
+	for q in _queued:
+		if q[0] == text:
+			return
+	_queued.append([text, transient])
 
 
 ## Text currently shown on the paper note ("" if none); for tests.
@@ -91,9 +102,10 @@ func note_text() -> String:
 	return _note_text if _note.visible else ""
 
 
-func wave_banner(wave: int, total: int, tag: String) -> void:
+func wave_banner(wave: int, total: int, tag: String, formation := "") -> void:
 	_banner = "Welle %d von %d" % [wave + 1, total]
-	_banner_sub = {"twins": "Zwillinge – beide fast gleichzeitig treffen", "armor": "Gepanzert – zwei verschiedene Lichter"}.get(tag, "")
+	_banner_sub = {"twins": "Zwillinge – beide fast gleichzeitig treffen", "armor": "Gepanzert – zwei verschiedene Lichter"}.get(tag,
+		FORMATION_HINTS.get(formation, ""))
 	if wave == 0:
 		_banner_sub = "Zwei Schatten, ein Licht?"
 
@@ -125,25 +137,22 @@ func _process(delta: float) -> void:
 ## fade out within 0.15 s when a run starts.
 func _update_note(delta: float) -> void:
 	var calm := sim.state in ["ready", "between"]
-	# At a break, the newest note wins: older queued ones are already outdated
-	# (e.g. "how to start" once the player has started a run).
-	if calm and not _queued.is_empty():
-		_note_text = _queued.pop_back()
-		_queued.clear()
-		_note.text = _note_text
-		_note_seen = 0.0
-		# Fade in from zero: a label shows its new text only once it is laid out.
-		_note.modulate.a = 0.0
+	# At each break the newest note comes first; an unread older one waits for a
+	# later break. During a long break, a read note makes room for the next.
+	if calm and (not _was_calm or _note_text == "" or (_note_seen >= 1.0 and not _queued.is_empty())):
+		_next_note()
+	if not calm and _was_calm:
+		# A run starts: situational notes are outdated now, read ones are done.
+		if _note_transient or _note_seen >= 1.0:
+			_note_text = ""
+			_note_seen = 0.0
+		_queued = _queued.filter(func(q): return not q[1])
+	_was_calm = calm
 	var show_note := calm and _note_text != ""
 	_note.modulate.a = move_toward(_note.modulate.a, 1.0 if show_note else 0.0, delta / 0.15)
 	_note.visible = show_note or _note.modulate.a > 0.01
 	if show_note and _note.modulate.a >= 0.99:
 		_note_seen += delta
-	# A note counts as read after 1 s on screen; if the next run starts sooner,
-	# it comes back at the following break (unless a newer note replaces it).
-	if not calm and _note.modulate.a <= 0.01 and _note_seen >= 1.0:
-		_note_text = ""
-		_note_seen = 0.0
 	var w := minf(600.0, size.x - 40.0)
 	_note.custom_minimum_size = Vector2(w, 0)
 	_note.size = Vector2(w, 0)
@@ -151,6 +160,22 @@ func _update_note(delta: float) -> void:
 	_note.position = Vector2((size.x - w) * 0.5, ring_top - 24.0 - _note.size.y)
 	var banner_on := sim.state == "ready" and _note_text == ""
 	_banner_alpha = move_toward(_banner_alpha, 1.0 if banner_on else 0.0, delta / (0.3 if banner_on else 0.15))
+
+
+func _next_note() -> void:
+	if _note_text != "" and _note_seen < 1.0 and not _note_transient:
+		_queued.push_front([_note_text, false])  # unread: comes back after the newer ones
+	if _queued.is_empty():
+		_note_text = ""
+		return
+	var q: Array = _queued.pop_back()
+	if q[0] != _note_text:
+		_note_text = q[0]
+		_note.text = _note_text
+		_note_seen = 0.0
+		# Fade in from zero: a label shows its new text only once it is laid out.
+		_note.modulate.a = 0.0
+	_note_transient = q[1]
 
 
 ## Drawn in three batches (Batch2D): lines and four-point primitives (timeline,

@@ -36,6 +36,15 @@ static func load_mode(name: String, mode: String) -> Dictionary:
 	return with_overrides(base, over)
 
 
+## Formation featured by the daily night (EchoSim.wave_formation), in turn.
+const DAILY_FEATURES := ["kette", "zange", "regen"]
+
+
+static func daily_feature(number := -1) -> String:
+	var n := daily_number() if number < 0 else number
+	return DAILY_FEATURES[posmod(n - 1, DAILY_FEATURES.size())]
+
+
 ## Number of today's daily night (#1 = 2026-10-22, the day NACHHALL was born).
 static func daily_number() -> int:
 	var epoch := Time.get_unix_time_from_datetime_string("2026-10-22T00:00:00")

@@ -16,6 +16,20 @@ als getestet.** Bots und Simulationen sind keine Menschen.
 | CI | GitHub Actions `.github/workflows/android.yml`: Tests, Smoke-Test, APK-Export, Artefakt-Upload |
 | Android-Gerät / Emulator | **nicht verfügbar** (keine KVM, kein Gerät). Gerätetests: `docs/playtests/DEVICE_TEST_PLAN.md` |
 
+## 0.5.0 (2026-10-23)
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Unit- und Integrationstests | `run_tests.gd` | **117 / 117 grün** (neu u. a.: jede Formation kommt vor Laufende an, Kettenabstand und **Doppeltreffer** zwischen zwei Gliedern, Zangen gespiegelt und gleichzeitig, Regen in eigenen Bahnen, Determinismus, erste Nacht nur Streuung, Tagesnacht-Gewichtung und -Rotation, Ketten-Zettel einmalig, nächstes Sternbild, Nacht-Historie (Kappung, Laden alter Spielstände), Diagramm auf der Sternbilder-Seite, ungelesene Zettel gehen nicht verloren, Sprite-Atlas) |
+| Bot-Simulation Formationen | `sim_echo.gd -- 40 7000 600 [overrides]`, 5 Einstellungen + Vollmond | alle Abnahmekriterien in allen Einstellungen bestanden (`docs/playtests/ECHO_SIM.md` Teil C) |
+| Render-Last | `perf_probe.tscn` (llvmpipe, Bot-Nacht Seed 11) | Draw-Calls Median 31–34, Spitze 42 (0.4.0: 190–308 / 394); `EchoView._draw` Median 0,42–0,49 ms Skriptzeit; Vergleich alter/neuer Frame in doppelter Vergrößerung ohne sichtbaren Unterschied |
+| Smoke-Test exportierter Build | `tools/smoke_exported.sh` | `SMOKE OK`; Bot-Nacht erreicht das Morgengrauen (1.350 Punkte) |
+| Sichtprüfung | `tools/capture.sh … profile=early seed=2 played=3` (40 s) + Standbilder je Formation | Ketten, Zangen und Regen werden wie beschrieben erzeugt; fand den verlorenen Ketten-Zettel (behoben, Regressionstest) |
+| APK-Build | `tools/build_android.sh game builds/android/nachhall-0.5.0-debug.apk debug` | gebaut, 60.178.652 Bytes, SHA-256 `92e4e666…1001`, Signatur gültig (Debug), Berechtigung nur `VIBRATE` (`docs/builds/nachhall-0.5.0-debug.verify.txt`) |
+
+**Nicht getestet:** alles am Gerät; ob Menschen den Doppeltreffer in Ketten entdecken; ob die Nacht-Historie motiviert
+oder unter Druck setzt (bewusst ohne Serien/Streaks gebaut).
+
 ## 0.4.0 (2026-10-23)
 
 | Prüfung | Befehl | Ergebnis |
