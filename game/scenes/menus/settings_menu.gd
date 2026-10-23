@@ -16,15 +16,15 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
-	dim.color = Color(UiTheme.BG, 0.96)
+	dim.color = UiTheme.BG  # opaque: the menu logo must not shine through
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 32
 	scroll.offset_right = -32
-	scroll.offset_top = 80
-	scroll.offset_bottom = -40
+	scroll.offset_top = 80 + SafeArea.top(get_viewport())
+	scroll.offset_bottom = -40 - SafeArea.bottom(get_viewport())
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 	var box := VBoxContainer.new()
@@ -33,7 +33,7 @@ func _ready() -> void:
 	box.add_child(UiTheme.label("Einstellungen", 52, UiTheme.TEXT, true))
 	box.add_child(_slider("Gesamtlautstärke", "master_volume"))
 	box.add_child(_slider("Musik", "music_volume"))
-	box.add_child(_slider("Effekte", "sfx_volume"))
+	box.add_child(_slider("Soundeffekte", "sfx_volume"))
 	box.add_child(_toggle("Stumm", "muted"))
 	box.add_child(_toggle("Vibration", "haptics"))
 	box.add_child(_effects_row())
@@ -72,7 +72,7 @@ func _slider(text: String, key: String) -> Control:
 	s.min_value = 0.0
 	s.max_value = 1.0
 	s.step = 0.05
-	s.custom_minimum_size = Vector2(0, 56)
+	s.custom_minimum_size = Vector2(0, UiTheme.TOUCH_MIN)
 	s.value = float(_save().get_setting(key))
 	s.value_changed.connect(func(v):
 		_save().set_setting(key, v)
@@ -84,7 +84,7 @@ func _slider(text: String, key: String) -> Control:
 func _toggle(text: String, key: String) -> Control:
 	var c := CheckButton.new()
 	c.text = text
-	c.custom_minimum_size = Vector2(0, 72)
+	c.custom_minimum_size = Vector2(0, UiTheme.TOUCH_MIN)
 	c.button_pressed = bool(_save().get_setting(key))
 	c.toggled.connect(func(on):
 		_save().set_setting(key, on)
@@ -94,19 +94,33 @@ func _toggle(text: String, key: String) -> Control:
 	return c
 
 
+const EFFECT_NAMES := {1.0: "Effekte: voll", 0.5: "Effekte: reduziert", 0.0: "Effekte: minimal"}
+const EFFECT_HINTS := {
+	1.0: "Wackeln, Blitze, Druckwellen und Funken",
+	0.5: "Halb so viel Wackeln, schwächere Blitze",
+	0.0: "Kein Wackeln, keine Blitze, kein Flackern",
+}
+
+
 func _effects_row() -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
 	var b := UiTheme.button("")
-	var names := {1.0: "Effekte: voll", 0.5: "Effekte: reduziert", 0.0: "Effekte: minimal"}
+	var hint := UiTheme.label("", 22, UiTheme.TEXT_DIM)
 	var cur := float(_save().get_setting("effects"))
-	b.text = names.get(cur, "Effekte: voll")
+	b.text = EFFECT_NAMES.get(cur, "Effekte: voll")
+	hint.text = EFFECT_HINTS.get(cur, EFFECT_HINTS[1.0])
 	b.size_flags_horizontal = Control.SIZE_FILL
 	b.pressed.connect(func():
 		var order := [1.0, 0.5, 0.0]
 		var v := float(_save().get_setting("effects"))
 		var nxt: float = order[(order.find(v) + 1) % order.size()]
 		_save().set_setting("effects", nxt)
-		b.text = names[nxt])
-	return b
+		b.text = EFFECT_NAMES[nxt]
+		hint.text = EFFECT_HINTS[nxt])
+	col.add_child(b)
+	col.add_child(hint)
+	return col
 
 
 ## How far the light moves per finger movement (bigger phones may want "hoch").

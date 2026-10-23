@@ -19,6 +19,8 @@ var _streams: Dictionary = {}  # name -> AudioStream
 var _last_played: Dictionary = {}  # name -> msec, for rate limiting
 var _music: AudioStreamPlayer
 var _duck := 0.0
+var _app_paused := false  # in the background (Android onPause)
+var _app_focused := true  # the window has focus (not behind the lock screen or a dialog)
 
 
 func _ready() -> void:
@@ -143,10 +145,19 @@ func _process(delta: float) -> void:
 		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(base, 0.0001)) - _duck)
 
 
+## Silent while the app is in the background or has no focus (also when Android
+## resumes it behind the lock screen); otherwise the player's own mute decides.
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT:
-			AudioServer.set_bus_mute(0, true)
-		NOTIFICATION_APPLICATION_RESUMED, NOTIFICATION_APPLICATION_FOCUS_IN:
-			var save := _save()
-			AudioServer.set_bus_mute(0, save != null and bool(save.get_setting("muted")))
+		NOTIFICATION_APPLICATION_PAUSED:
+			_app_paused = true
+		NOTIFICATION_APPLICATION_RESUMED:
+			_app_paused = false
+		NOTIFICATION_APPLICATION_FOCUS_OUT:
+			_app_focused = false
+		NOTIFICATION_APPLICATION_FOCUS_IN:
+			_app_focused = true
+		_:
+			return
+	var save := _save()
+	AudioServer.set_bus_mute(0, _app_paused or not _app_focused or (save != null and bool(save.get_setting("muted"))))

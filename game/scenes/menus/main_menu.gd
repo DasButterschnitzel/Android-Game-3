@@ -10,6 +10,8 @@ var _logo: Control
 var _view: EchoView
 var _demo: EchoSim
 var _bot: EchoBot
+var _planning := false
+const PLAN_TICKS_PER_FRAME := 60  # an 8 s run is planned within about 8 frames
 
 
 func _save() -> SaveStore:
@@ -27,6 +29,8 @@ func _ready() -> void:
 	var world := Node2D.new()
 	add_child(world)
 	_view = EchoView.new()
+	if _save():
+		_view.effects = float(_save().get_setting("effects"))
 	world.add_child(_view)
 	_new_demo()
 	var shade := ColorRect.new()
@@ -110,6 +114,7 @@ func _new_demo() -> void:
 	var cfg := Config.load_balance("echo")
 	_demo = EchoSim.new(cfg, arena, int(Time.get_unix_time_from_system()) / 600)
 	_bot = EchoBot.new(_demo, "perfect", 520.0)
+	_planning = false
 	_view.setup(_demo, int(Time.get_unix_time_from_system()) / 86400)
 
 
@@ -132,14 +137,20 @@ func _go(path: String) -> void:
 func _physics_process(_delta: float) -> void:
 	if _demo == null:
 		return
-	# Attract mode: the bot plays on behind the menu.
+	# Attract mode: the bot plays on behind the menu. It plans each run in
+	# slices over a few frames (one whole simulated run per frame would hitch).
 	match _demo.state:
 		"ready", "between":
+			if _planning:
+				if _bot.prepare_step(PLAN_TICKS_PER_FRAME):
+					_planning = false
+					_demo.begin_run()
+				return
 			if _demo.state == "between" and _bot.should_bank():
 				_demo.bank()
 			if _demo.state in ["ready", "between"]:
-				_bot.prepare_run()
-				_demo.begin_run()
+				_bot.begin_prepare()
+				_planning = true
 		"running":
 			_demo.step([_bot.delta()])
 		"over":

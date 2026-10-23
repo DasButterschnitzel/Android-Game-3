@@ -17,8 +17,8 @@ func _ready() -> void:
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.offset_left = 32
 	box.offset_right = -32
-	box.offset_top = 80
-	box.offset_bottom = -40
+	box.offset_top = 80 + SafeArea.top(get_viewport())
+	box.offset_bottom = -40 - SafeArea.bottom(get_viewport())
 	add_child(box)
 	box.add_child(UiTheme.label("Credits", 48, UiTheme.TEXT, true))
 	var scroll := ScrollContainer.new()

@@ -27,7 +27,10 @@ var ui_layer: CanvasLayer
 var debug_overlay: TouchDebugOverlay
 var bank_button: Button
 
-var state := "play"  # play | paused | results
+var state := "play":  # play | paused | results
+	set(value):
+		state = value
+		_apply_power()
 var effects := 1.0
 var sensitivity := 1.0  # player setting, scales relative_gain
 var second_finger := true
@@ -42,6 +45,7 @@ var targets: Array[Vector2] = []  # wanted position per live light
 var shake := 0.0
 var _steer := {}  # pointer id -> live light index (0 also steers the ring light)
 var _pending := {}  # pointer id -> finger travel of a possible second light
+var _waiting: Array[int] = []  # fingers down in the field without a light, oldest first
 var _lock := 0.0
 var _bank_timer := -1.0
 var _overlay: Control
@@ -101,6 +105,7 @@ func _ready() -> void:
 	debug_overlay.visible = save != null and bool(save.get_setting("touch_debug"))
 	ui_layer.add_child(debug_overlay)
 	onboarding = EchoOnboarding.new(save)
+	onboarding.second_finger = second_finger
 	onboarding.hint.connect(_on_hint)
 	new_round()
 
@@ -132,9 +137,13 @@ func new_round() -> void:
 	var save := _save()
 	hud.best = _best(save)
 	if save:
-		# A locked paper lent for one night (optional rewarded ad), else the chosen one.
+		# A locked paper lent for one night (optional rewarded ad), else the chosen
+		# one. Starting the night uses the loan up, also if it is abandoned.
 		var trial := str(save.data.get("paper_trial", ""))
 		view.set_paper(trial if trial != "" else str(save.get_setting("lantern_paper")))
+		if trial != "":
+			save.data["paper_trial"] = ""
+			save.mark_dirty("paper_trial")
 	audio.attach(sim)
 	fx.clear()
 	_reset_input()
@@ -246,8 +255,14 @@ func _on_down(p: PointerTracker.Pointer) -> void:
 				if not _steer.values().has(k):
 					_steer[p.id] = k  # a finger takes over a light that lost its finger
 					return
-			if second_finger and sim.lights_used() < int(cfg.max_lights) and sim.live.size() < 2:
+			_waiting.append(p.id)  # may take over a light whose finger lifts (thumb hand-over)
+			if _second_light_allowed():
 				_pending[p.id] = 0.0
+
+
+## A second light may join: setting on, a light left this night, at most two at once.
+func _second_light_allowed() -> bool:
+	return second_finger and sim.lights_used() < int(cfg.max_lights) and sim.live.size() < 2
 
 
 func _on_move(p: PointerTracker.Pointer) -> void:
@@ -265,6 +280,9 @@ func _on_move(p: PointerTracker.Pointer) -> void:
 		_pending[p.id] = float(_pending[p.id]) + (p.pos - p.prev_pos).length()
 		if float(_pending[p.id]) >= SECOND_FINGER_DRAG:
 			_pending.erase(p.id)
+			if not _second_light_allowed():
+				return  # e.g. two lights already: the finger keeps waiting for a hand-over
+			_waiting.erase(p.id)
 			var at := sim.start_pos + Vector2(70 if sim.live[0].pos.x < sim.start_pos.x else -70, 0)
 			var k := sim.add_live_light(at)
 			if k >= 0:
@@ -297,17 +315,27 @@ func _move_ring_light(d: Vector2) -> void:
 
 
 func _on_up(p: PointerTracker.Pointer) -> void:
+	_waiting.erase(p.id)
+	_pending.erase(p.id)
 	if _steer.has(p.id) and sim.state == "running":
 		var k: int = _steer[p.id]
+		_steer.erase(p.id)
 		if k < targets.size():
 			targets[k] = sim.live[k].pos  # the light stops where it is
+		if not _waiting.is_empty():
+			# Thumb hand-over: the finger already resting in the field takes the
+			# light over instead of lighting a new one.
+			var q: int = _waiting.pop_front()
+			_pending.erase(q)
+			_steer[q] = k
+		return
 	_steer.erase(p.id)
-	_pending.erase(p.id)
 
 
 func _reset_input() -> void:
 	_steer.clear()
 	_pending.clear()
+	_waiting.clear()
 	tracker.cancel_all()
 
 
@@ -323,6 +351,7 @@ func _after_run() -> void:
 	# next start gesture (no accidental runs from a resting finger).
 	_steer.clear()
 	_pending.clear()
+	_waiting.clear()
 	targets.clear()
 	_lock = START_LOCK
 	if sim.state != "between":
@@ -506,7 +535,8 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	else:
 		o.add_child(UiTheme.label("Bestwert %s" % EchoHud.fmt(_best(save) if save else score), 30, UiTheme.TEXT_DIM))
 	var st: Dictionary = sim.stats
-	var lines := "%d von %d Wellen · %d perfekt\n%d Lichter · %d s" % [st.waves_banked, sim.waves_per_round(), st.perfect_waves, st.lights, int(_round_time)]
+	var lines := "%d von %d Wellen · %d perfekt\n%d %s · %d s" % [st.waves_banked, sim.waves_per_round(), st.perfect_waves,
+		st.lights, "Licht" if int(st.lights) == 1 else "Lichter", int(_round_time)]
 	if survived:
 		lines += "\nFlammen am Morgen: %d (+%d)" % [sim.core_hp, sim.dawn_bonus()]
 	if daily:
@@ -514,14 +544,20 @@ func _show_results(score: int, is_best: bool, survived: bool) -> void:
 	elif mode == "fullmoon":
 		lines = "Vollmond\n" + lines
 	o.add_child(UiTheme.label(lines, 26, UiTheme.TEXT_DIM, true))
-	for id in earned:
-		var a: Dictionary = Progression.ACHIEVEMENTS[id]
-		o.add_child(UiTheme.label("Sternbild: %s" % a.name, 26, UiTheme.ACCENT, true))
-	for pid in Progression.papers_for(earned):
-		o.add_child(UiTheme.label("Neues Laternenpapier: %s" % Progression.PAPERS[pid].name, 24, UiTheme.GOOD, true))
-	if save:
+	# New Sternbilder and papers as one wrapped list each, so even a night that
+	# unlocks a lot keeps the card (and its buttons) on screen.
+	if not earned.is_empty():
+		var names := PackedStringArray(earned.map(func(id: String) -> String: return Progression.ACHIEVEMENTS[id].name))
+		var head := "Sternbild" if names.size() == 1 else "Neue Sternbilder"
+		o.add_child(UiTheme.label("%s: %s" % [head, ", ".join(names)], 26, UiTheme.ACCENT, true))
+	var papers := Progression.papers_for(earned)
+	if not papers.is_empty():
+		var names := PackedStringArray(papers.map(func(id: String) -> String: return Progression.PAPERS[id].name))
+		var head := "Neues Laternenpapier" if names.size() == 1 else "Neue Laternenpapiere"
+		o.add_child(UiTheme.label("%s: %s" % [head, ", ".join(names)], 24, UiTheme.GOOD, true))
+	if save and earned.size() < 3:
 		# A concrete next goal (no timer, no pressure): the closest open Sternbild.
-		var goal := Progression.next_goal(save.data.stats, save.data.unlocks)
+		var goal := Progression.next_goal(save.data.stats, save.data.unlocks, second_finger)
 		if not goal.is_empty():
 			o.add_child(UiTheme.label("Nächstes Sternbild: %s\n%s" % [goal.name, goal.hint], 22, UiTheme.TEXT_DIM))
 	var again := UiTheme.primary_button("Nochmal")
@@ -633,6 +669,7 @@ func _reload_settings() -> void:
 	effects = float(save.get_setting("effects"))
 	sensitivity = float(save.get_setting("sensitivity"))
 	second_finger = bool(save.get_setting("second_finger"))
+	onboarding.second_finger = second_finger
 	fx.intensity = 0.4 + 0.6 * effects
 	view.effects = effects
 	debug_overlay.visible = bool(save.get_setting("touch_debug"))
@@ -648,6 +685,26 @@ func on_back() -> bool:
 		"results":
 			_to_menu()
 	return true
+
+
+## Battery: the screen stays on only while a night is played; pause and the
+## results card may let the phone sleep and need no high frame rate.
+static func power_for(game_state: String) -> Dictionary:
+	return {"keep_on": game_state == "play", "max_fps": 0 if game_state == "play" else 30}
+
+
+func _apply_power() -> void:
+	if not OS.has_feature("mobile"):
+		return  # desktop, tests, captures: unchanged
+	var pm := power_for(state)
+	DisplayServer.screen_set_keep_on(pm.keep_on)
+	Engine.max_fps = pm.max_fps
+
+
+func _exit_tree() -> void:
+	if OS.has_feature("mobile"):
+		DisplayServer.screen_set_keep_on(false)  # menus: the phone may sleep
+		Engine.max_fps = 0
 
 
 func _notification(what: int) -> void:

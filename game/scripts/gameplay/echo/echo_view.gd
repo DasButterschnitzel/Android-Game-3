@@ -204,6 +204,8 @@ func twin_beam(a: Vector2, b: Vector2, color: Color) -> void:
 
 
 func shockwave(pos: Vector2, color: Color, size: float) -> void:
+	if effects <= 0.0:
+		return  # "Effekte: minimal": no shockwaves
 	waves_fx.append({"pos": pos, "color": color, "age": 0.0, "size": size})
 
 
@@ -215,12 +217,24 @@ func fly_points(from: Vector2, count: int, color: Color) -> void:
 
 
 func flash_enemy(id: int) -> void:
-	_enemy_flash[id] = 0.25
+	if effects > 0.0:  # "minimal": no white flash, the ink burst still shows the hit
+		_enemy_flash[id] = 0.25 * effects
 
 
+## A lost flame: red tint and a sway kick, both scaled by the effects setting
+## (none at "minimal"; the dark wick and the "durch" label still tell it).
 func lantern_hit() -> void:
-	_lantern_hit = 1.0
-	_sway_v += (0.9 if randf() < 0.5 else -0.9) * (0.4 + 0.6 * effects)
+	_lantern_hit = effects
+	_sway_v += (0.9 if randf() < 0.5 else -0.9) * effects
+
+
+## How red the flames a bank would cost are (0..1). Pulses at 2 Hz at most
+## (1 Hz reduced) and stays steady at "minimal": no flicker.
+func risk_mix(time: float) -> float:
+	if effects <= 0.0:
+		return 0.75
+	var hz := 2.0 if effects >= 1.0 else 1.0
+	return 0.5 + 0.5 * sin(time * TAU * hz)
 
 
 func run_started() -> void:
@@ -543,7 +557,7 @@ func _draw_lantern() -> void:
 			var h := r * 0.64 * (1.0 + 0.1 * sin(t * 11.0 + i * 1.7))
 			var outer := Color("#ff9a3c")
 			if i >= lives - at_risk:
-				outer = outer.lerp(Color("#ff5d5d"), 0.5 + 0.5 * sin(t * TAU * 3.0))
+				outer = outer.lerp(Color("#ff5d5d"), risk_mix(t))
 				Batch2D.prim_disc(self, fp + Vector2(0, -h - 10), 4.0, INK, 8)
 			_prim_quad(fp + Vector2(-hw, -2), fp + Vector2(0, -h), fp + Vector2(hw, -2), fp + Vector2(0, 4), outer)
 			_prim_quad(fp + Vector2(-hw * 0.5, -2), fp + Vector2(0, -h * 0.6), fp + Vector2(hw * 0.5, -2), fp + Vector2(0, 2), Color("#fff3c4"))
@@ -693,7 +707,7 @@ func _draw_shockwaves() -> void:
 	for w in waves_fx:
 		var k: float = float(w.age) / 0.9
 		var r: float = float(w.size) * (0.2 + 0.8 * (1.0 - pow(1.0 - k, 2.0)))
-		draw_multiline(Batch2D.ring(w.pos, r, 48, 0.5), Color(w.color, 0.45 * (1.0 - k)), 4.0 * (1.0 - k) + 1.0, true)
+		draw_multiline(Batch2D.ring(w.pos, r, 48, 0.5), Color(w.color, 0.45 * effects * (1.0 - k)), 4.0 * (1.0 - k) + 1.0, true)
 
 
 # --- lights -----------------------------------------------------------------------
@@ -736,7 +750,7 @@ func _draw_echo_guides() -> void:
 			var a := (0.5 + 0.5 * soon) if running else 0.5
 			# Ink halo under a coloured ring, baked into one atlas sprite.
 			ArtKit.sprite(self, "guide", sp, 16.0 + 4.0 * soon, Color(c, a))
-			_text(sp, str(k + 1), 14, Color(c, a))
+			_text(sp, str(k + 1), 18, Color(c, a))
 
 
 func _thin(path: PackedVector2Array, step: int) -> PackedVector2Array:
@@ -826,11 +840,14 @@ func _draw_live_lights() -> void:
 			draw_multiline(Batch2D.arc(sim.live[k].pos, 22.0, -PI * 0.5, -PI * 0.5 + TAU * charge, sides), Color(LIVE_COL, 0.9), 4.0, true)
 
 
+## Strike rings are feedback, so they stay at every setting; "minimal" draws
+## them as a calm, dim outline instead of a bright flash.
 func _draw_flashes() -> void:
+	var bright := lerpf(0.35, 0.9, effects)
 	for f in flashes:
 		var k: float = f.age / 0.45
 		var r: float = lerpf(10.0, float(sim.cfg.hit_radius) * (1.6 if f.big else 1.2), k)
-		draw_multiline(Batch2D.ring(f.pos, r, 32, 0.5), Color(f.color, (1.0 - k) * 0.9), 4.0 * (1.0 - k) + 1.0, true)
+		draw_multiline(Batch2D.ring(f.pos, r, 32, 0.5), Color(f.color, (1.0 - k) * bright), (4.0 * (1.0 - k) + 1.0) * lerpf(0.6, 1.0, effects), true)
 
 
 func _draw_fliers() -> void:

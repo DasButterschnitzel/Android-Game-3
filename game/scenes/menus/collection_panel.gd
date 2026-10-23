@@ -47,6 +47,8 @@ func _build() -> void:
 	box.add_child(_section("Letzte Nächte"))
 	box.add_child(HistoryChart.new(history, int(stats.best_score)))
 	box.add_child(UiTheme.label(HistoryChart.summary(history), 24, UiTheme.TEXT_DIM))
+	if not history.is_empty():
+		box.add_child(UiTheme.label(HistoryChart.LEGEND, 21, UiTheme.TEXT_DIM))
 	box.add_child(_section("Laternenpapier"))
 	box.add_child(_papers(unlocks, save))
 	box.add_child(_section("Sternbilder (%d/%d)" % [_count_earned(unlocks), Progression.ACHIEVEMENTS.size()]))
@@ -113,8 +115,8 @@ func _papers(unlocks: Dictionary, save: SaveStore) -> Control:
 			if id == lent_id:
 				card.add_child(_note("trägst du nächste Nacht", UiTheme.GOOD))
 			elif _trial_offered(save):
-				var t := UiTheme.button("1 Nacht testen (Werbung)", Vector2(196, 56))
-				t.add_theme_font_size_override("font_size", 18)
+				var t := UiTheme.button("1 Nacht testen\n(Werbung)", Vector2(196, UiTheme.TOUCH_MIN))
+				t.add_theme_font_size_override("font_size", 20)
 				t.pressed.connect(func(): _try_paper(pid))
 				card.add_child(t)
 			card.add_child(_note("Freischalten: " + Progression.ACHIEVEMENTS[p.unlock].name, UiTheme.TEXT_DIM))
@@ -123,7 +125,7 @@ func _papers(unlocks: Dictionary, save: SaveStore) -> Control:
 
 
 func _note(text: String, col: Color) -> Label:
-	var l := UiTheme.label(text, 18, col)
+	var l := UiTheme.label(text, 21, col)
 	l.custom_minimum_size = Vector2(196, 0)
 	return l
 
@@ -169,7 +171,8 @@ func _achievement(id: String, earned: bool) -> Control:
 	star.custom_minimum_size = Vector2(40, 40)
 	star.draw.connect(func(): _draw_star(star, earned))
 	row.add_child(star)
-	var l := UiTheme.label("%s\n%s" % [a.name, a.text], 24, UiTheme.TEXT if earned else UiTheme.TEXT_DIM)
+	# Earned: what was done; still open: what to do.
+	var l := UiTheme.label("%s\n%s" % [a.name, a.text if earned else a.goal], 24, UiTheme.TEXT if earned else UiTheme.TEXT_DIM)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL

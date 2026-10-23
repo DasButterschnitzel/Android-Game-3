@@ -43,7 +43,7 @@ func _ready() -> void:
 	_atlas = ArtKit.atlas()
 	_pause = Button.new()
 	_pause.focus_mode = Control.FOCUS_NONE
-	_pause.custom_minimum_size = Vector2(88, 88)
+	_pause.custom_minimum_size = Vector2(UiTheme.TOUCH_MIN, UiTheme.TOUCH_MIN)
 	_pause.icon = _pause_icon()
 	_pause.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var box := UiTheme._box(Color(1, 1, 1, 0.10), 44)

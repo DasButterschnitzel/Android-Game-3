@@ -27,6 +27,8 @@ const HINTS := {
 var _save: SaveStore
 var _seen: Dictionary
 var _rounds := 0
+## The "second finger = second light" setting; its tip only makes sense when on.
+var second_finger := true
 
 
 func _init(save: SaveStore) -> void:
@@ -53,7 +55,7 @@ func round_started(_sim: EchoSim, rounds_played: int) -> void:
 	_rounds = rounds_played
 	if not seen("start"):
 		show("start")
-	elif rounds_played >= 3:
+	elif rounds_played >= 3 and second_finger:
 		show("second")
 
 

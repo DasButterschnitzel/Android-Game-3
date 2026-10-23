@@ -50,11 +50,31 @@ static func evaluate(round: Dictionary, stats: Dictionary, unlocks: Dictionary) 
 	return earned
 
 
+## Sternbilder that follow from the lifetime stats alone, for saves from
+## versions without them (0.2/0.3: an old dawn or best score never counted).
+## Returns the ids it added.
+static func backfill(stats: Dictionary, unlocks: Dictionary) -> Array[String]:
+	var added: Array[String] = []
+	var best := maxi(int(stats.get("best_score", 0)), int(stats.get("best_fullmoon", 0)))
+	var conds := {
+		"dawn": int(stats.get("dawns", 0)) >= 1,
+		"score_1000": best >= 1000,
+		"score_1500": best >= 1500,
+		"perfect_25": int(stats.get("perfect_waves", 0)) >= 25,
+		"nights_10": int(stats.get("rounds_played", 0)) >= 10,
+	}
+	for id in conds:
+		if conds[id] and not unlocks.has(id):
+			unlocks[id] = true
+			added.append(id)
+	return added
+
+
 ## The closest open Sternbild as a concrete next goal for the results card:
 ## a counted one ("18/25 perfekte Wellen") once it is at least half done,
 ## otherwise the first open one-time goal, otherwise the best counted one.
 ## {} when everything is unlocked.
-static func next_goal(stats: Dictionary, unlocks: Dictionary) -> Dictionary:
+static func next_goal(stats: Dictionary, unlocks: Dictionary, second_finger := true) -> Dictionary:
 	var best := int(stats.get("best_score", 0))
 	var counted := {
 		"perfect_25": [int(stats.get("perfect_waves", 0)), 25, "perfekte Wellen"],
@@ -78,6 +98,8 @@ static func next_goal(stats: Dictionary, unlocks: Dictionary) -> Dictionary:
 	if top != "" and top_p >= 0.5:
 		return counted_goal.call(top)
 	for id in ["first_echo", "solo_wave", "dawn", "duo", "daily", "dawn_full"]:
+		if id == "duo" and not second_finger:
+			continue  # not reachable while the setting is off
 		if not unlocks.has(id):
 			return {"id": id, "name": ACHIEVEMENTS[id].name, "hint": ACHIEVEMENTS[id].goal}
 	if top != "":

@@ -100,3 +100,17 @@ func test_chain_hint_comes_with_the_first_chain_wave() -> void:
 	assert_true(keys.has("chain"), "chain wave explains the double strike")
 	onboarding.wave_started(sim)
 	assert_eq(keys.count("chain"), 1, "only once")
+
+
+func test_second_finger_tip_and_goal_only_with_the_setting_on() -> void:
+	var stats := {"perfect_waves": 0, "rounds_played": 3}
+	var unlocks := {"first_echo": true, "solo_wave": true, "dawn": true}
+	assert_eq(str(Progression.next_goal(stats, unlocks).get("id", "")), "duo", "setting on: two hands is the next goal")
+	assert_ne(str(Progression.next_goal(stats, unlocks, false).get("id", "")), "duo", "setting off: never suggested")
+	var onboarding := EchoOnboarding.new(null)
+	onboarding.second_finger = false
+	var shown: Array[String] = []
+	onboarding.hint.connect(func(key: String, _text: String): shown.append(key))
+	onboarding.round_started(null, 0)
+	onboarding.round_started(null, 5)
+	assert_false(shown.has("second"), "no second-finger tip while the setting is off")

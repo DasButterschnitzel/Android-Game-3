@@ -21,7 +21,7 @@
 | Platzierung | Wo | Regeln |
 |---|---|---|
 | Interstitial | Ergebniskarte → „Nochmal“ oder „Menü“ (`EchoGame._natural_break`) | nur nach einer **beendeten** Nacht; Frequenz siehe 3; ohne geladene Anzeige sofort weiter |
-| Rewarded | Seite „Sternbilder“ → gesperrtes Laternenpapier „1 Nacht testen (Werbung)“ | nur auf Wunsch; Belohnung nur bei vollständigem Ansehen; nur Aussehen, eine Nacht lang. Bisher **nur als Platzhalter** (Debug-Builds); der AdMob-Adapter bietet noch keine Rewarded-Anzeigen an |
+| Rewarded | Seite „Sternbilder“ → gesperrtes Laternenpapier „1 Nacht testen (Werbung)“ (zweizeilig) | nur auf Wunsch; Belohnung nur bei vollständigem Ansehen; nur Aussehen, eine Nacht lang. Bisher **nur als Platzhalter** (Debug-Builds); der AdMob-Adapter bietet noch keine Rewarded-Anzeigen an |
 
 Verworfen: „Zweite Chance“ (eine Flamme zurück) – verändert Punkte und damit Bestwerte und die für alle gleiche
 Tagesnacht; Multiplikator-Boni, mehr Lichter, Werbung für Grundfunktionen.

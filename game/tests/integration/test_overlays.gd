@@ -33,6 +33,59 @@ func test_menu_overlays_fill_the_screen() -> void:
 		await frames(1)
 
 
+## Immersive full screen: titles and the last buttons stay clear of camera
+## cut-outs and the gesture bar on every page (QA review 0.7: settings and
+## credits used fixed margins).
+func test_panels_respect_the_safe_area() -> void:
+	SafeArea.override = Vector4(0, 100, 0, 60)
+	var vp := get_viewport().get_visible_rect().size
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+		menu.add_child(panel)
+		await frames(2)
+		var name: String = panel.get_script().get_global_name()
+		var labels := panel.find_children("*", "Label", true, false)
+		assert_true(labels.size() > 0, "%s has a title" % name)
+		if labels.size() > 0:
+			assert_true((labels[0] as Label).get_global_rect().position.y >= 100.0, "%s title below the cut-out" % name)
+		for b: Control in panel.find_children("*", "BaseButton", true, false):
+			if b.is_visible_in_tree() and not _in_scroll(b):
+				assert_true(b.get_global_rect().end.y <= vp.y - 60.0 + 0.5, "%s: %s above the gesture bar" % [name, b.name])
+		panel.queue_free()
+		await frames(1)
+	SafeArea.override = Vector4(-1, -1, -1, -1)
+
+
+func _in_scroll(c: Node) -> bool:
+	var n := c.get_parent()
+	while n != null:
+		if n is ScrollContainer:
+			return true
+		n = n.get_parent()
+	return false
+
+
+## Every button, toggle and slider is at least 48 dp tall on a 360 dp phone.
+func test_touch_targets_are_at_least_48_dp() -> void:
+	var screens: Array[Control] = [menu]
+	for panel: Control in [SettingsMenu.new(), CreditsPanel.new(), PrivacyPanel.new(), CollectionPanel.new(), RulesPanel.new()]:
+		menu.add_child(panel)
+		screens.append(panel)
+	await frames(3)
+	var checked := 0
+	for scr in screens:
+		var controls: Array = scr.find_children("*", "BaseButton", true, false) + scr.find_children("*", "HSlider", true, false)
+		for c: Control in controls:
+			if not c.is_visible_in_tree():
+				continue
+			checked += 1
+			assert_true(c.size.y >= UiTheme.TOUCH_MIN - 0.5, "%s / %s '%s' is %d units tall" % [
+				scr.name, c.get_class(), str(c.get("text")) if c is Button else "", int(c.size.y)])
+	assert_true(checked >= 20, "checked the controls of every screen (%d)" % checked)
+	for i in range(1, screens.size()):
+		screens[i].queue_free()
+	await frames(1)
+
+
 func test_settings_buttons_are_reachable() -> void:
 	var s := SettingsMenu.new()
 	menu.add_child(s)
@@ -121,7 +174,7 @@ func test_a_locked_paper_can_be_worn_for_one_night_after_a_rewarded_ad() -> void
 	var panel := CollectionPanel.new()
 	menu.add_child(panel)
 	await frames(2)
-	var tries: Array = panel.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text == "1 Nacht testen (Werbung)")
+	var tries: Array = panel.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text == "1 Nacht testen\n(Werbung)")
 	assert_true(tries.size() >= 1, "locked papers offer a one-night trial")
 	if tries.size() >= 1:
 		(tries[0] as Button).pressed.emit()

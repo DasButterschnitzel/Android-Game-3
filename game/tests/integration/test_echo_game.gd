@@ -157,6 +157,70 @@ func test_second_finger_needs_a_deliberate_drag() -> void:
 	touch(0, p, false)
 
 
+## Re-gripping with the other thumb mid-run (put B down, then lift A) hands the
+## light over: no unwanted second light, no frozen light (QA review 0.7).
+func test_thumb_hand_over_keeps_one_light() -> void:
+	var p := rest_point()
+	touch(0, p, true)
+	for i in 5:
+		drag(0, p + Vector2(0, -16 * (i + 1)))
+	assert_eq(game.sim.state, "running", "run started")
+	var mult := game.sim.multiplier()
+	var q := Vector2(200, 950)
+	touch(1, q, true)
+	touch(0, p + Vector2(0, -80), false)
+	await physics_frames(2)
+	var start: Vector2 = game.sim.live[0].pos
+	var finger := q
+	for i in 8:
+		finger += Vector2(10, 0)
+		drag(1, finger)
+		await physics_frames(1)
+	await physics_frames(20)
+	assert_eq(game.sim.live.size(), 1, "no second light from the hand-over")
+	assert_eq(game.sim.multiplier(), mult, "multiplier untouched")
+	assert_near((game.sim.live[0].pos - start).x, 80.0 * float(game.cfg.relative_gain), 3.0, "the other thumb steers the light")
+	touch(1, finger, false)
+
+
+func test_thumb_hand_over_also_works_without_the_second_finger_setting() -> void:
+	game.second_finger = false
+	var p := rest_point()
+	touch(0, p, true)
+	for i in 5:
+		drag(0, p + Vector2(0, -16 * (i + 1)))
+	var q := Vector2(200, 950)
+	touch(1, q, true)
+	touch(0, p + Vector2(0, -80), false)
+	await physics_frames(2)
+	var start: Vector2 = game.sim.live[0].pos
+	for i in 8:
+		drag(1, q + Vector2(10 * (i + 1), 0))
+		await physics_frames(1)
+	await physics_frames(20)
+	assert_true((game.sim.live[0].pos - start).length() > 20.0, "the light follows the other thumb instead of freezing")
+	touch(1, q, false)
+
+
+func test_never_more_than_two_live_lights() -> void:
+	var p := rest_point()
+	touch(0, p, true)
+	for i in 5:
+		drag(0, p + Vector2(0, -16 * (i + 1)))
+	var a := Vector2(150, 900)
+	var b := Vector2(560, 900)
+	touch(1, a, true)
+	touch(2, b, true)  # both down before either drags
+	for i in 6:
+		drag(1, a + Vector2(10 * (i + 1), 0))
+		drag(2, b + Vector2(-10 * (i + 1), 0))
+	await physics_frames(2)
+	assert_eq(game.sim.live.size(), 2, "a third finger cannot light a third light")
+	assert_eq(game.sim.multiplier(), float(game.cfg.light_multipliers[1]), "costs like two lights only")
+	for i in 3:
+		touch(i, Vector2(300, 900), false)
+
+
 func test_pause_freezes_the_run() -> void:
 	start_run_and_release()
 	await physics_frames(5)
@@ -392,6 +456,35 @@ func test_a_lent_paper_is_worn_for_exactly_one_night() -> void:
 	assert_eq(str(save.data.paper_trial), "", "and is returned afterwards")
 	game.new_round()
 	assert_ne(game.view._paper, Progression.PAPERS["gold"].paper, "next night: the own paper again")
+
+
+func test_a_lent_paper_is_used_up_by_an_abandoned_night_too() -> void:
+	var save := get_node("/root/Save") as SaveStore
+	save.data["paper_trial"] = "gold"
+	game.new_round()
+	assert_eq(game.view._paper, Progression.PAPERS["gold"].paper, "worn this night")
+	assert_eq(str(save.data.paper_trial), "", "the loan is used up when the night starts")
+	game.pause()
+	game.new_round()  # "Neu starten" from the pause menu
+	assert_ne(game.view._paper, Progression.PAPERS["gold"].paper, "a restart does not get it again")
+
+
+## A strong first night can unlock almost everything at once: the card, with
+## both buttons, must still fit a 16:9 screen (QA review 0.7).
+func test_results_card_fits_even_when_a_night_unlocks_a_lot() -> void:
+	game.daily = true
+	var all: Array[String] = []
+	for id in Progression.ACHIEVEMENTS:
+		all.append(id)
+	game.earned = all
+	game._show_results(1550, true, true)
+	await frames(3)
+	var vp := Rect2(Vector2.ZERO, game.get_viewport_rect().size)
+	var card := game._overlay.get_child(0) as Control
+	assert_true(vp.encloses(card.get_global_rect()), "card %s inside the screen %s" % [card.get_global_rect(), vp])
+	assert_true(vp.encloses(game.again_button.get_global_rect()), "Nochmal on screen")
+	var texts: Array = card.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	assert_true(texts.any(func(t): return str(t).begins_with("Neue Sternbilder: ")), "listed in one line")
 
 
 func test_results_card_closed_early_leaves_no_dangling_timer() -> void:

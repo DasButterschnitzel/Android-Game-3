@@ -4,7 +4,10 @@ extends Node
 ##
 ## One JSON document in user:// with a schema version. Writes are atomic
 ## (write temp file, then rename) so a kill during saving never corrupts the
-## previous state. A corrupt file is moved aside and defaults are used.
+## previous state; the previous file is kept as <path>.bak, the last good copy
+## if the newest one comes back broken (e.g. a power loss before the storage
+## flushed it; GDScript cannot fsync). A corrupt file is moved aside, then the
+## backup or the defaults are used.
 
 signal changed(key: String)
 
@@ -15,6 +18,7 @@ const HISTORY_SIZE := 30  # nights kept for the chart on the Sternbilder page
 var path := DEFAULT_PATH
 var data: Dictionary = {}
 var _dirty := false
+var _flush_scheduled := false
 
 
 static func defaults() -> Dictionary:
@@ -26,10 +30,9 @@ static func defaults() -> Dictionary:
 			"sfx_volume": 0.9,
 			"muted": false,
 			"haptics": true,
-			"effects": 1.0,  # 1.0 full, 0.5 reduced, 0.0 minimal (shake/flash off)
+			"effects": 1.0,  # 1.0 full, 0.5 reduced, 0.0 minimal (no shake, flashes, shockwaves or flicker)
 			"touch_debug": false,
 			"control_mode": "direct",  # LUNTE lab only: "direct", "offset" or "relative"
-			"left_handed": false,
 			"second_finger": true,  # a second finger lights a second light
 			"sensitivity": 1.0,  # relative control gain factor: 0.75 low, 1.0 normal, 1.3 high
 			"lantern_paper": "classic",  # cosmetic, see Progression.PAPERS
@@ -74,26 +77,47 @@ func _ready() -> void:
 		for a in args:
 			if a.begins_with("save="):
 				path = "user://" + a.substr(5).get_file()
-		if "fresh_save" in args and path != DEFAULT_PATH and FileAccess.file_exists(path):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+		if "fresh_save" in args and path != DEFAULT_PATH:
+			remove_files(path)
 	load_from_disk()
+
+
+## Deletes a save file with its temp and backup copies (tests, fresh runs).
+static func remove_files(file: String) -> void:
+	for f in [file, file + ".tmp", file + ".bak"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
 func load_from_disk() -> void:
 	data = defaults()
-	if not FileAccess.file_exists(path):
+	var loaded: Variant = _read_json(path)
+	if loaded == null and FileAccess.file_exists(path):
+		_quarantine_corrupt()
+	if loaded == null:
+		loaded = _read_json(path + ".bak")
+		if loaded != null:
+			push_warning("SaveStore: %s unreadable, using the last good copy" % path)
+	if loaded == null:
 		return
-	var f := FileAccess.open(path, FileAccess.READ)
+	data = _merge(defaults(), _migrate(loaded))
+	data.version = SCHEMA_VERSION
+	Progression.backfill(data.stats, data.unlocks)
+
+
+## The document in a file, or null if it is missing or not a JSON object.
+static func _read_json(file: String) -> Variant:
+	if not FileAccess.file_exists(file):
+		return null
+	var f := FileAccess.open(file, FileAccess.READ)
 	if f == null:
-		return
+		return null
 	var json := JSON.new()
 	var err := json.parse(f.get_as_text())
 	f.close()
 	if err != OK or typeof(json.data) != TYPE_DICTIONARY:
-		_quarantine_corrupt()
-		return
-	data = _merge(defaults(), _migrate(json.data))
-	data.version = SCHEMA_VERSION
+		return null
+	return json.data
 
 
 ## Upgrades older documents before merging.
@@ -137,24 +161,30 @@ func save_now() -> bool:
 	var tmp := path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
-		push_error("SaveStore: cannot write %s" % tmp)
+		push_warning("SaveStore: cannot write %s (retried with the next change)" % tmp)
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
-	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(path))
+	var real := ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(path):
+		DirAccess.rename_absolute(real, real + ".bak")  # the last good copy
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), real)
 	_dirty = err != OK
 	return err == OK
 
 
 ## Marks data dirty; flushed at the end of the frame (coalesces many writes).
+## After a failed write the next change schedules a new attempt.
 func mark_dirty(key := "") -> void:
 	changed.emit(key)
-	if not _dirty:
-		_dirty = true
+	_dirty = true
+	if not _flush_scheduled:
+		_flush_scheduled = true
 		_flush_deferred.call_deferred()
 
 
 func _flush_deferred() -> void:
+	_flush_scheduled = false
 	if _dirty:
 		save_now()
 

@@ -19,6 +19,8 @@ var needs: Dictionary = {}
 var _target := -1
 var _target_tick := -1
 var _plan_cool := 0
+var _probe: EchoSim  # run being simulated by begin_prepare()/prepare_step()
+var _twin_hits := {}  # id -> Array of hit ticks by echoes, filled by the probe
 
 
 func _init(s: EchoSim, strat := "perfect", light_speed := 600.0) -> void:
@@ -29,22 +31,46 @@ func _init(s: EchoSim, strat := "perfect", light_speed := 600.0) -> void:
 
 ## Called before each run: works out what the echoes will miss.
 func prepare_run() -> void:
+	begin_prepare()
+	while not prepare_step(1 << 30):
+		pass
+
+
+## The same planning in slices (main-menu attract mode): begin_prepare() once,
+## then prepare_step() every frame until it returns true, so the simulated run
+## does not cost one long frame.
+func begin_prepare() -> void:
 	_target = -1
 	_target_tick = -1
 	needs.clear()
+	_probe = null
 	if strategy == "chaser":
 		return
-	var probe := sim.fork()
-	var twin_hits := {}  # id -> Array of hit ticks by echoes
+	_probe = sim.fork()
+	_twin_hits = {}
+	var twin_hits := _twin_hits
 	# The lambda must not capture the probe (reference cycle); twins carry their hit tick.
-	probe.enemy_hit.connect(func(e, _l):
+	_probe.enemy_hit.connect(func(e, _l):
 		if e.spec.type == EchoSim.Type.TWIN:
 			if not twin_hits.has(e.spec.id):
 				twin_hits[e.spec.id] = []
 			twin_hits[e.spec.id].append(int(e.hit_tick)))
-	probe.begin_run()
-	while probe.state == "running":
-		probe.step()
+	_probe.begin_run()
+
+
+## Simulates up to max_ticks of the planned run; true once the plan is ready.
+func prepare_step(max_ticks: int) -> bool:
+	if _probe == null:
+		return true
+	var n := 0
+	while _probe.state == "running" and n < max_ticks:
+		_probe.step()
+		n += 1
+	if _probe.state == "running":
+		return false
+	var probe := _probe
+	var twin_hits := _twin_hits
+	_probe = null
 	var side_filter := 2
 	if strategy == "sector":
 		side_filter = [-1, 1, 0][sim.run_index % 3]
@@ -70,6 +96,7 @@ func prepare_run() -> void:
 					needs[spec.id] = {"kind": "kill", "lo": maxi(lo, h - w), "hi": mini(hi, h + w)}
 				elif not twin_hits.has(spec.id) and not needs.has(partner):
 					needs[spec.id] = {"kind": "setup", "lo": lo, "hi": hi}
+	return true
 
 
 ## Movement for the current tick.

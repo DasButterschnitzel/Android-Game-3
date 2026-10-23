@@ -6,9 +6,9 @@ const TEST_PATH := "user://test_save.json"
 
 
 func before_each() -> void:
-	for p in [TEST_PATH, TEST_PATH + ".tmp", TEST_PATH + ".corrupt"]:
-		if FileAccess.file_exists(p):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	SaveStore.remove_files(TEST_PATH)
+	if FileAccess.file_exists(TEST_PATH + ".corrupt"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH + ".corrupt"))
 	store = SaveStore.new()
 	store.path = TEST_PATH
 
@@ -59,6 +59,50 @@ func test_corrupt_file_is_quarantined() -> void:
 	store.load_from_disk()
 	assert_eq(store.data.stats.best_score, 0, "defaults used")
 	assert_true(FileAccess.file_exists(TEST_PATH + ".corrupt"), "corrupt copy kept for diagnosis")
+
+
+## Power loss after the newest write: the file comes back empty. The last good
+## copy is used instead of resetting all progress (QA review 0.7).
+func test_broken_newest_file_falls_back_to_the_last_good_copy() -> void:
+	store.load_from_disk()
+	store.data.stats.best_score = 500
+	assert_true(store.save_now(), "first save")
+	store.data.stats.best_score = 900
+	assert_true(store.save_now(), "second save keeps the first as backup")
+	var f := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	f.store_string("")  # what a lost write can leave behind
+	f.close()
+	var other := SaveStore.new()
+	other.path = TEST_PATH
+	other.load_from_disk()
+	assert_eq(other.data.stats.best_score, 500, "progress from the last good copy, not the defaults")
+	assert_true(FileAccess.file_exists(TEST_PATH + ".corrupt"), "the broken file is kept for diagnosis")
+	other.free()
+
+
+## A failed write must not block later saves until the app is backgrounded.
+func test_a_failed_write_does_not_block_later_saves() -> void:
+	store.path = "user://no_such_dir/save.json"  # cannot be written
+	store.load_from_disk()
+	store.mark_dirty("x")
+	await frames(2)
+	assert_false(FileAccess.file_exists(store.path), "the write failed")
+	store.path = TEST_PATH  # storage is back
+	store.record_echo_round(42, {}, 10.0)
+	await frames(2)
+	assert_true(FileAccess.file_exists(TEST_PATH), "the next change was saved")
+
+
+## Players of 0.2/0.3 get the Sternbilder their lifetime stats already prove.
+func test_old_saves_get_the_sternbilder_their_stats_prove() -> void:
+	var f := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": 2, "stats": {"best_score": 1200, "dawns": 2, "rounds_played": 4}}))
+	f.close()
+	store.load_from_disk()
+	assert_true(store.data.unlocks.has("dawn"), "an old dawn counts (opens Vollmond)")
+	assert_true(store.data.unlocks.has("score_1000"), "an old best of 1.200 counts")
+	assert_false(store.data.unlocks.has("score_1500"), "nothing that was not reached")
+	assert_false(store.data.unlocks.has("nights_10"), "4 nights are not 10")
 
 
 func test_no_temp_file_left_after_save() -> void:

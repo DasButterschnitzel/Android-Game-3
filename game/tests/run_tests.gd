@@ -21,8 +21,7 @@ func _run() -> void:
 	var save := root.get_node_or_null("Save") as SaveStore
 	if save:
 		save.path = "user://test_runner_save.json"
-		if FileAccess.file_exists(save.path):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path(save.path))
+		SaveStore.remove_files(save.path)
 		save.load_from_disk()
 		# Debug builds show ad placeholders; tests that want them switch them on.
 		save.set_setting("ads_preview", false)

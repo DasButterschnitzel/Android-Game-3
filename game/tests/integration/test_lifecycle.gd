@@ -17,6 +17,9 @@ func before_each() -> void:
 
 func after_each() -> void:
 	game.queue_free()
+	# Back in the foreground for the next test (the audio keeps the app state).
+	_send(Node.NOTIFICATION_APPLICATION_RESUMED)
+	_send(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	AudioServer.set_bus_mute(0, false)
 	await frames(2)
 
@@ -67,6 +70,17 @@ func test_returning_keeps_a_chosen_mute() -> void:
 	_send(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	await frames(1)
 	assert_false(AudioServer.is_bus_mute(0), "unmuted again")
+
+
+## Android can resume the app behind the lock screen: no sound until the
+## window has focus again.
+func test_resumed_without_focus_stays_silent() -> void:
+	_send(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_send(Node.NOTIFICATION_APPLICATION_PAUSED)
+	_send(Node.NOTIFICATION_APPLICATION_RESUMED)
+	assert_true(AudioServer.is_bus_mute(0), "resumed but not focused: still silent")
+	_send(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_false(AudioServer.is_bus_mute(0), "focused again: sound back")
 
 
 func test_focus_loss_between_runs_drops_fingers_without_a_pause_menu() -> void:

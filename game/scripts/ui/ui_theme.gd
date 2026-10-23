@@ -3,6 +3,10 @@ extends RefCounted
 ## Builds the game's UI Theme in code (no binary .tres to merge): Fredoka font,
 ## rounded buttons with generous touch targets (>= 48 dp), readable sizes.
 
+## Smallest touch target in viewport units: 48 dp on a 360 dp wide phone, where
+## the 720 units of the viewport are 360 dp (bigger phones and tablets: more).
+const TOUCH_MIN := 96.0
+
 const FONT_MEDIUM := preload("res://assets/fonts/Fredoka-Medium.ttf")
 const FONT_BOLD := preload("res://assets/fonts/Fredoka-Bold.ttf")
 
@@ -93,10 +97,10 @@ static func primary_button(text: String) -> Button:
 	return b
 
 
-static func button(text: String, min_size := Vector2(360, 88)) -> Button:
+static func button(text: String, min_size := Vector2(360, TOUCH_MIN)) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = min_size
+	b.custom_minimum_size = Vector2(min_size.x, maxf(min_size.y, TOUCH_MIN))
 	b.focus_mode = Control.FOCUS_NONE
 	return b
 
