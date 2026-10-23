@@ -158,6 +158,8 @@ func test_credits_lead_to_the_engine_licenses() -> void:
 	for needle in ["The FreeType Project", "Mbed TLS", "HarfBuzz", "Copyright (c) 2014-present Godot Engine contributors"]:
 		assert_true(text.contains(needle), "contains %s" % needle)
 	assert_true(text.length() > 50000, "the full license texts (%d characters)" % text.length())
+	assert_eq(LicensesPanel.reflow("Permission is\n  granted\n\n\nTHE SOFTWARE\r\nIS"), "Permission is granted\n\nTHE SOFTWARE IS",
+		"hard-wrapped lines joined per paragraph")
 	c.queue_free()
 
 

@@ -9,7 +9,7 @@ OUT="$(realpath -m "${1:-$ROOT/builds/layout}")"; shift || true
 mkdir -p "$OUT"
 FAIL=0
 for res in 720x1280 1080x2400 480x854 1536x2048; do
-  for screen in menu settings collection credits privacy rules game pause between results results_many; do
+  for screen in menu settings collection credits licenses privacy rules game pause between results results_many; do
     LOG="$OUT/${screen}_${res}.log"
     xvfb-run -a -s "-screen 0 ${res}x24" godot --path "$ROOT/game" --rendering-driver opengl3 --resolution "$res" \
       --script res://tests/capture/layout_probe.gd -- "$screen" "$OUT" "$@" save=layout_probe.json fresh_save > "$LOG" 2>&1

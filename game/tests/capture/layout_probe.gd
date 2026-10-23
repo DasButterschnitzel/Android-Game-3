@@ -5,7 +5,7 @@ extends SceneTree
 ## Usage (Xvfb, see tools/layout_check.sh):
 ##   godot --path game --rendering-driver opengl3 --resolution WxH --script res://tests/capture/layout_probe.gd \
 ##     -- <screen> <out_dir> [safe_top=N] [text=1.2] [daily] save=layout_probe.json fresh_save
-## Screens: menu settings collection credits privacy rules game pause between results results_many
+## Screens: menu settings collection credits licenses privacy rules game pause between results results_many
 
 var screen := "menu"
 var outdir := "/tmp"
@@ -46,7 +46,7 @@ func _go() -> void:
 		"menu":
 			subject = load("res://scenes/menus/main_menu.tscn").instantiate()
 			root.add_child(subject)
-		"settings", "collection", "credits", "privacy", "rules":
+		"settings", "collection", "credits", "licenses", "privacy", "rules":
 			var menu = load("res://scenes/menus/main_menu.tscn").instantiate()
 			root.add_child(menu)
 			await process_frame
@@ -56,7 +56,13 @@ func _go() -> void:
 				"credits": subject = CreditsPanel.new()
 				"privacy": subject = PrivacyPanel.new()
 				"rules": subject = RulesPanel.new()
+				"licenses": subject = LicensesPanel.new()
 			menu.add_child(subject)
+			if subject is LicensesPanel:
+				for i in 240:  # its texts are added a few per frame
+					if (subject as LicensesPanel).complete():
+						break
+					await process_frame
 		"results_many":
 			var g2: EchoGame = load("res://scenes/gameplay/echo_game.tscn").instantiate()
 			g2.seed_override = 5

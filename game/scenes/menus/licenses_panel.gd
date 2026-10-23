@@ -47,7 +47,7 @@ func _ready() -> void:
 static func entries() -> Array[Array]:
 	var out: Array[Array] = []
 	out.append(["Die Godot Engine enthält Bestandteile Dritter. Ihre Urheber- und Lizenzhinweise (englische Originaltexte):", 24, UiTheme.TEXT_DIM])
-	out.append([Engine.get_license_text(), 20, UiTheme.TEXT_DIM])
+	out.append([reflow(Engine.get_license_text()), 20, UiTheme.TEXT_DIM])
 	for c in Engine.get_copyright_info():
 		var lines := PackedStringArray()
 		for part in c.parts:
@@ -60,8 +60,24 @@ static func entries() -> Array[Array]:
 	names.sort()
 	for n in names:
 		out.append([str(n), 26, UiTheme.ACCENT])
-		out.append([str(texts[n]), 18, UiTheme.TEXT_DIM])
+		out.append([reflow(str(texts[n])), 18, UiTheme.TEXT_DIM])
 	return out
+
+
+## License texts are hard-wrapped at about 80 columns; on a phone the label
+## wraps them again and leaves short orphan lines. Joins the lines of each
+## paragraph; paragraphs stay separated by a blank line.
+static func reflow(text: String) -> String:
+	var paras := PackedStringArray()
+	for para in text.replace("\r\n", "\n").split("\n\n"):
+		var lines := PackedStringArray()
+		for line in para.split("\n"):
+			var t := line.strip_edges()
+			if t != "":
+				lines.append(t)
+		if not lines.is_empty():
+			paras.append(" ".join(lines))
+	return "\n\n".join(paras)
 
 
 func _process(_delta: float) -> void:
