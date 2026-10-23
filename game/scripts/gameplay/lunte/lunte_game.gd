@@ -338,17 +338,12 @@ func _show_results(score: int, is_best: bool) -> void:
 	tw.tween_callback(func(): again.disabled = false)
 
 
+## The parked LUNTE prototype (debug lab only) never shows ads.
 func _on_again() -> void:
-	var ads := get_node_or_null("/root/Ads")
-	if ads and ads.has_method("maybe_show_interstitial"):
-		await ads.maybe_show_interstitial()
 	new_round()
 
 
 func _to_menu() -> void:
-	var ads := get_node_or_null("/root/Ads")
-	if ads and ads.has_method("maybe_show_interstitial"):
-		await ads.maybe_show_interstitial()
 	var flow := get_node_or_null("/root/Flow")
 	if flow:
 		flow.go("res://scenes/menus/main_menu.tscn")

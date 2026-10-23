@@ -43,7 +43,8 @@ func _ready() -> void:
 	if OS.is_debug_build():
 		box.add_child(_control_row())  # only the parked LUNTE lab scene uses it
 		box.add_child(_cvd_row())
-		box.add_child(_toggle("Werbe-Platzhalter (Test)", "ads_preview"))
+		var ads_label := "Testanzeigen (Google)" if OS.has_feature(AdService.ADS_TEST_FEATURE) else "Werbe-Platzhalter (Test)"
+		box.add_child(_toggle(ads_label, "ads_preview"))
 	var rules := UiTheme.button("So geht's")
 	rules.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	rules.pressed.connect(func(): add_child(RulesPanel.new()))

@@ -13,7 +13,7 @@ eine Frequenz, die Spielern nicht schadet.
 1. **Fassade + Adapter:** `AdService` (Autoload `Ads`) entscheidet allein über `AdPolicy`; Adapter `none`, `mock`
    (offline-Platzhalter) und `admob`. Spielcode ruft nur `on_round_finished`, `maybe_show_interstitial`,
    `show_consent_form`, `rewarded_available`/`show_rewarded`.
-2. **Google Mobile Ads SDK 25.5.0 + UMP 4.0.0** über ein **eigenes, schlankes Godot-Android-Plugin** (Java, ~360
+2. **Google Mobile Ads SDK 25.5.0 + UMP 4.0.0** über ein **eigenes, schlankes Godot-Android-Plugin** (Java, ~470
    Zeilen). Gründe: Drittanbieter-Downloads von GitHub sind in dieser Umgebung gesperrt, Maven ist erreichbar; der
    Umfang (Einwilligung, Interstitial) ist klein; jede Zeile ist prüfbar. Mediation: keine.
 3. **Drei Build-Varianten:** `Android` Debug = Platzhalter (keine `INTERNET`-Berechtigung), `Android` Release = keine
@@ -22,9 +22,9 @@ eine Frequenz, die Spielern nicht schadet.
 4. **Platzierungen:** Interstitial nur beim Verlassen der Ergebniskarte; Rewarded nur auf Wunsch für eine
    kosmetische Probenacht mit einem gesperrten Laternenpapier. Keine „Zweite Chance“ (verzerrt Bestwerte und die
    gemeinsame Tagesnacht).
-5. **Frequenz:** frühestens nach 5 Nächten seit Installation und 3 in der Sitzung, höchstens jede 4. Nacht, mindestens
-   300 s Abstand (≤ 12 pro Stunde im ungünstigsten Fall; die Vorgabe mit 180 s hätte verlierenden Spielern bis zu 20
-   erlaubt).
+5. **Frequenz:** frühestens nach der 5. Nacht seit Installation und der 4. in der Sitzung (der Abstand „jede 4. Nacht“
+   zählt ab Sitzungsbeginn), höchstens jede 4. Nacht, mindestens 300 s Abstand, seit 0.7 auch über App-Neustarts
+   (≤ 12 pro Stunde im ungünstigsten Fall; die Vorgabe mit 180 s hätte verlierenden Spielern bis zu 20 erlaubt).
 
 ## Verworfen
 - Community-Plugin (nicht ladbar hier, mehr Fläche als nötig) – für später wieder offen.
@@ -37,3 +37,13 @@ Unit- und Integrationstests (Adapter gegen einen Fake-Singleton, Frequenz, Einwi
 keine Anzeige beim Abbruch aus der Pause); Werbetest-APK auf Build-Ebene geprüft (Manifest, Klassen, Signatur,
 Standard-APK unverändert). **Nicht geprüft:** Laufzeit auf einem Gerät (Plugin lädt, UMP-Formular, Testanzeige
 erscheint und schließt, Spiel läuft weiter), Verhalten offline, Netzverkehr vor der Einwilligung.
+
+## Nachtrag 0.7 (Ads-Review)
+- **Einwilligungsinformationen bei jedem Start aktualisieren** (Googles Vorgabe). Vorher las das Plugin nur den
+  gespeicherten Stand; mit UMP 4.0.0 ist `canRequestAds()` bis zur Aktualisierung aber immer falsch – nach der ersten
+  Sitzung wäre im Werbetest-Build nie wieder eine Anzeige angefragt worden. Das Formular erscheint weiterhin nur an
+  einer Pause; eine abgelaufene Entscheidung wird erneut erfragt.
+- Anzeigen nur mit Entscheidung (`OBTAINED`/`NOT_REQUIRED`), nicht auf `canRequestAds()` allein (Fehlkonfigurations-Flag).
+- Einwilligungsablauf abbrechbar (`cancel_consent`): nach dem Zeitlimit erscheint kein verspätetes Formular mehr.
+- Hauptschalter aus → kein Backend; Tester-Schalter aus → Plugin startet nicht. Anzeigen höchstens Einstufung G.
+- Der geparkte LUNTE-Prototyp (nur im Debug-Labor) zeigt keine Werbung mehr.

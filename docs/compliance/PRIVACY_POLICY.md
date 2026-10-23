@@ -4,7 +4,7 @@
 > der Text rechtlich geprüft und unter einer öffentlich erreichbaren URL bereitgestellt werden (Pflicht für den
 > Play Store). Abschnitt B gilt erst, wenn eine Version mit Werbung erscheint.
 
-Stand: 2026-10-23 · gilt für Version 0.6 und später
+Stand: 2026-10-23 · gilt für Version 0.7 und später
 
 ## Verantwortlicher
 [Name / Firma, Anschrift, E-Mail – vom Inhaber zu ergänzen]
@@ -25,21 +25,33 @@ Stand: 2026-10-23 · gilt für Version 0.6 und später
 ## B. Versionen mit Werbung (Werbetest-Version mit Google-Testanzeigen; eine echte Werbe-Version erst nach Freigabe)
 Geplanter Anbieter: Google AdMob (Google Ireland Ltd.) mit der Einwilligungsplattform Google UMP. Vor dem ersten
 Laden von Werbung wirst du – wo gesetzlich erforderlich (EWR, Vereinigtes Königreich, Schweiz) – um deine
-Einwilligung gebeten. Ohne Einwilligung werden höchstens nicht personalisierte Anzeigen gezeigt.
+Einwilligung gebeten. Ohne Einwilligung werden höchstens nicht personalisierte Anzeigen gezeigt; ohne Einwilligung
+in die Speicherung von Informationen auf deinem Gerät liefert Google nach eigenen Regeln höchstens eingeschränkte
+Anzeigen. Außerhalb dieser Gebiete zeigt die App ebenfalls nur nicht personalisierte Anzeigen.
+
+Bei jedem Start der App fragt die Einwilligungsplattform bei Google ab, ob für deinen Standort eine Einwilligung
+nötig ist und ob deine frühere Entscheidung noch gilt. Dabei werden technisch nötige Daten wie die IP-Adresse und
+Geräteinformationen an Google übertragen – auch bevor du gefragt wurdest. Werbung selbst wird erst nach deiner
+Entscheidung geladen.
 
 Dabei erhebt und teilt das Werbe-SDK laut Google (Data disclosure für Version 25.5.0, abgerufen 2026-10-23,
 <https://developers.google.com/admob/android/privacy/play-data-disclosure>; vor Veröffentlichung erneut zu prüfen):
 - IP-Adresse (zur Schätzung des ungefähren Standorts), Interaktionen (App-Start, Taps, Video-Aufrufe),
-  Diagnosedaten zur Leistung von App und SDK, Geräte-Kennungen (Werbe-ID / „Advertising ID“, App-Set-ID).
+  Diagnosedaten zur Leistung von App und SDK, Geräte- und Konto-Kennungen (Werbe-ID / „Advertising ID“, App-Set-ID
+  und, falls zutreffend, weitere Kennungen im Zusammenhang mit auf dem Gerät angemeldeten Konten).
 - Übertragung verschlüsselt (TLS).
 - Zwecke: Anzeigen ausliefern und messen, Betrugsprävention, ggf. Personalisierung (nur mit Einwilligung).
-- Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) für Personalisierung und Speicherzugriff (§ 25 TTDSG);
-  berechtigtes Interesse für nicht personalisierte Auslieferung, soweit zulässig.
+- Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) für Personalisierung und für den Zugriff auf
+  Informationen auf deinem Gerät (§ 25 TDDDG). [Ob für nicht personalisierte Auslieferung eine weitere
+  Rechtsgrundlage greift, ist rechtlich zu prüfen; ohne Einwilligung in die Speicherung auf dem Gerät gibt es laut
+  Google nur eingeschränkte Anzeigen.]
 - Du kannst deine Einwilligung jederzeit auf der Seite **Datenschutz → „Werbe-Einwilligung ändern“** ändern und die Werbe-ID in den
   Android-Einstellungen zurücksetzen oder löschen.
 
-Vollbild-Werbung erscheint nur nach einer beendeten Nacht (frühestens nach fünf Nächten, höchstens jede vierte Nacht,
-mindestens fünf Minuten Abstand), nie während eines Laufs und nie direkt nach dem Start. Werbung mit Belohnung gibt es
+Vollbild-Werbung erscheint nur nach einer beendeten Nacht (frühestens nach der fünften Nacht seit Installation und der
+vierten einer Sitzung, höchstens jede vierte Nacht, mindestens fünf Minuten Abstand), nie während eines Laufs und nie
+direkt nach dem Start. Die Werbetest-Version verwendet zum Testen kürzere Abstände (erste Anzeige ab der zweiten
+Nacht, danach jede zweite, mindestens eine Minute Abstand). Werbung mit Belohnung gibt es
 nur, wenn du sie selbst auswählst; die Belohnung ist rein kosmetisch. Die App funktioniert auch ohne
 Internetverbindung vollständig; dann wird keine Werbung geladen.
 

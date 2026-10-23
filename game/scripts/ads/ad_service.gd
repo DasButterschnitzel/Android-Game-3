@@ -42,8 +42,17 @@ func _ready() -> void:
 	var save := _save()
 	if save:
 		policy.lifetime_rounds = int(save.data.stats.rounds_played)
-	var key := "adapter_ads_test" if ads_test else ("adapter_debug" if OS.is_debug_build() else "adapter_release")
-	use_adapter(str(config.get(key, "none")))
+		policy.last_shown_unix = float(save.data.ads.last_interstitial_unix)
+	use_adapter(backend_for(config, ads_test, OS.is_debug_build()))
+
+
+## Backend of this build; "none" when the master switch is off, so nothing can
+## even start.
+static func backend_for(cfg: Dictionary, ads_test: bool, debug: bool) -> String:
+	if not bool(cfg.get("ads_enabled", true)):
+		return "none"
+	var key := "adapter_ads_test" if ads_test else ("adapter_debug" if debug else "adapter_release")
+	return str(cfg.get(key, "none"))
 
 
 ## Config of the experimental ads test build: "ads_test_overrides" (shorter
@@ -64,24 +73,46 @@ func _save() -> SaveStore:
 	return get_node_or_null("/root/Save") as SaveStore
 
 
-## Switches the backend (also used by tests). Unknown or unavailable -> "none".
-func use_adapter(name: String) -> void:
+## Switches the backend (also used by tests, which may pass their own
+## instance). Unknown or unavailable -> "none". The backend starts (for AdMob:
+## consent information update) only while ads are switched on.
+func use_adapter(name: String, instance: AdAdapter = null) -> void:
 	if _adapter:
 		_adapter.queue_free()
 		_adapter = null
-	match name:
-		"mock":
-			_adapter = MockAdAdapter.new()
-		"admob":
-			var a := AdMobAdapter.new()
-			if a.is_available():
-				_adapter = a
-			else:
-				a.free()
+	if instance:
+		_adapter = instance
+	else:
+		match name:
+			"mock":
+				_adapter = MockAdAdapter.new()
+			"admob":
+				var a := AdMobAdapter.new()
+				if a.is_available():
+					_adapter = a
+				else:
+					a.free()
 	adapter_name = name if _adapter else "none"
 	if _adapter:
 		_adapter.configure(config)
+		_adapter.consent_info_changed.connect(_on_adapter_consent)
 		add_child(_adapter)
+		_start_adapter()
+
+
+## Starts the backend once ads are on (also later, after the tester toggle).
+func _start_adapter() -> bool:
+	if not ads_enabled():
+		return false
+	_adapter.start()
+	return true
+
+
+## The backend's own, fresh view of consent wins over the stored answer: an
+## expired or reset decision becomes "unknown" and is asked again at a break.
+func _on_adapter_consent(status: String) -> void:
+	if status != consent_status():
+		_set_consent(status)
 
 
 ## False when there is no backend, the master switch in ads.json is off, or a
@@ -121,17 +152,22 @@ func on_round_finished() -> void:
 ## few nights rather than at the first start; then shows an interstitial if the
 ## caps allow it. Always returns; never longer than the ad itself.
 func maybe_show_interstitial() -> bool:
-	if not ads_enabled() or _busy:
+	if _busy or not _start_adapter():
 		return false
 	_busy = true
 	if not consent_ready() and policy.lifetime_rounds >= int(config.get("consent_after_rounds", 2)):
 		var status: String = await _adapter.request_consent()
 		_set_consent(status)
 	var shown := false
-	if policy.should_show_interstitial(_clock, consent_ready()):
+	var now_unix := Time.get_unix_time_from_system()
+	if policy.should_show_interstitial(_clock, consent_ready(), now_unix):
 		shown = await _adapter.show_interstitial(consent_status() == "granted")
 		if shown:
-			policy.on_interstitial_shown(_clock)
+			policy.on_interstitial_shown(_clock, now_unix)
+			var save := _save()
+			if save:  # the time cap also holds across app restarts
+				save.data.ads.last_interstitial_unix = int(now_unix)
+				save.mark_dirty("ads")
 	_busy = false
 	interstitial_closed.emit(shown)
 	return shown
@@ -145,7 +181,7 @@ func rewarded_available() -> bool:
 ## The player asked for it: consent first if it was never asked, then the ad.
 ## True only if the ad was watched to the end.
 func show_rewarded() -> bool:
-	if not rewarded_available() or _busy:
+	if not rewarded_available() or _busy or not _start_adapter():
 		return false
 	_busy = true
 	if not consent_ready():
@@ -155,9 +191,15 @@ func show_rewarded() -> bool:
 	return earned
 
 
+## Privacy panel: offer "change consent" only where the backend needs it
+## (Google: privacy options required, e.g. in the EEA).
+func privacy_options_available() -> bool:
+	return _start_adapter() and _adapter.privacy_options_required()
+
+
 ## Privacy panel: change consent at any time.
 func show_consent_form() -> void:
-	if not ads_enabled() or _busy:
+	if _busy or not _start_adapter():
 		return
 	_busy = true
 	var status: String = await _adapter.request_consent(true)

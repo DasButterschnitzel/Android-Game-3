@@ -52,6 +52,19 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           VERSION=$(grep -oP '^version/name="\K[^"]+' game/export_presets.cfg | head -1)
           bash tools/build_android.sh game "builds/android/nachhall-${VERSION}-debug.apk" debug
+          bash tools/verify_ads_build.sh --default "builds/android/nachhall-${VERSION}-debug.apk"
+
+      # Release configuration check: App Bundle signed with a throwaway key
+      # (never uploaded anywhere), verified with bundletool, aapt2, apksigner.
+      - name: Build and verify release bundle (throwaway key)
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          VERSION=$(grep -oP '^version/name="\K[^"]+' game/export_presets.cfg | head -1)
+          bash tools/build_release.sh "builds/release/nachhall-${VERSION}-release.aab" --throwaway
+          REPORT="builds/release/nachhall-${VERSION}-release.verify.txt"
+          if grep -qE "INVALID|FAILED|no universal.apk" "$REPORT" || ! grep -q "^debuggable: 0$" "$REPORT"; then
+            echo "::error::release bundle verification failed (see $REPORT)"; exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -60,5 +73,8 @@ jobs:
           path: |
             builds/android/*.apk
             builds/android/*.verify.txt
+            builds/android/*.ads-check.txt
             builds/android/*.build.log
+            builds/release/*.verify.txt
+            builds/release/*.build.log
           retention-days: 30

@@ -61,8 +61,7 @@ static func defaults() -> Dictionary:
 		"pending_mode": "",  # "" normal night, "fullmoon"
 		"ads": {
 			"consent": "unknown",  # unknown | granted | denied | not_required
-			"rounds_since_interstitial": 0,
-			"last_interstitial_unix": 0,
+			"last_interstitial_unix": 0,  # wall clock of the last interstitial (time cap across restarts)
 		},
 	}
 

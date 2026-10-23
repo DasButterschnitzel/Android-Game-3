@@ -1,6 +1,6 @@
 # Play Console – Data-Safety-Angaben (Entwurf)
 
-> Entwurf zur Vorbereitung; die verbindlichen Angaben macht der Inhaber in der Play Console. Stand 0.6.0.
+> Entwurf zur Vorbereitung; die verbindlichen Angaben macht der Inhaber in der Play Console. Stand 0.7.0.
 
 ## A. `Android`-Build (alle bisherigen Test-APKs; Release ohne Werbung)
 | Frage | Antwort | Begründung |
@@ -21,10 +21,18 @@ verwendete), abgerufen am 2026-10-23:
 | IP-Adresse (zur Schätzung des ungefähren Standorts) | Standort → ungefährer Standort | ja | ja |
 | Produkt-Interaktionen (App-Start, Taps, Video-Aufrufe) | App-Aktivität → App-Interaktionen | ja | ja |
 | Diagnose (Leistung von App und SDK) | App-Informationen und -Leistung → Diagnose | ja | ja |
-| Geräte- und Konto-Kennungen (Werbe-ID, App-Set-ID) | Geräte- oder andere IDs | ja | ja |
+| Geräte- und Konto-Kennungen (Werbe-ID, App-Set-ID und, falls zutreffend, weitere Kennungen angemeldeter Konten auf dem Gerät) | Geräte- oder andere IDs | ja | ja |
 
 Laut derselben Seite ist die Erhebung der Werbe-ID per Manifest abschaltbar; Funktionen wie „Limited Ads“ können die
 Übertragung von Werbe-ID und weiteren Daten unterbinden. Optionale SDK-Funktionen können weitere Angaben nötig machen.
+
+Nicht von dieser Seite abgedeckt: die **Einwilligungsplattform UMP 4.0.0**. Sie kontaktiert Google bei jedem App-Start
+(IP-Adresse, Geräteinformationen), auch bevor der Spieler gefragt wurde; der Inhaber prüft, ob das zusätzliche
+Angaben erfordert.
+
+Löschung: Die App selbst speichert nichts auf Servern; „Können Nutzer die Löschung ihrer Daten beantragen?“ betrifft
+die vom SDK an Google übermittelten Daten – Antwort und Verweis (Googles Prozesse, Zurücksetzen/Löschen der Werbe-ID
+in den Android-Einstellungen) legt der Inhaber fest.
 
 Weitere Punkte bei Werbung:
 - Fragebogen „Enthält Werbung“: **Ja** (nur für eine Version mit Werbung).

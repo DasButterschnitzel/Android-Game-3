@@ -40,9 +40,14 @@ import java.util.Set;
  * (interstitials) and the User Messaging Platform (consent). Experimental test builds only.
  *
  * <p>SDK calls run on the host (UI) thread; results go back to Godot as signals (emitSignal hands
- * them to the render thread). Every request ends in one result signal; the GDScript side still
- * guards each wait with a timeout. Hard guard of this spike: only Google's public test ids are
- * accepted, for the app id in the manifest as well as for ad units.
+ * them to the render thread). Every request ends in one result signal, except a consent flow the
+ * game abandoned with cancel_consent(); the GDScript side guards each wait with a timeout. Hard
+ * guard of this spike: only Google's public test ids are accepted, for the app id in the manifest
+ * as well as for ad units.
+ *
+ * <p>Consent follows Google's UMP flow: the consent information is updated at every app launch
+ * (canRequestAds() is false until then), the form appears only when the game asks for it at a
+ * natural break, and ads are requested only with a decision (OBTAINED or NOT_REQUIRED).
  *
  * <p>Method names are snake_case on purpose: they are the GDScript-facing API.
  */
@@ -60,6 +65,8 @@ public class NachhallAdsPlugin extends GodotPlugin {
 
     private static final SignalInfo INITIALIZED =
             new SignalInfo("initialized", String.class, Boolean.class, String.class);
+    private static final SignalInfo CONSENT_INFO =
+            new SignalInfo("consent_info", String.class, Boolean.class, String.class);
     private static final SignalInfo CONSENT_FORM_SHOWN = new SignalInfo("consent_form_shown");
     private static final SignalInfo CONSENT_RESULT =
             new SignalInfo("consent_result", String.class, Boolean.class, String.class);
@@ -75,13 +82,16 @@ public class NachhallAdsPlugin extends GodotPlugin {
     private ConsentInformation consent;
     private InterstitialAd interstitial;
     private boolean sdkStarted;
-    private boolean consentBusy;
+    private boolean updating; // a consent information update of refresh_consent() is running
+    private int consentFlow; // generation of request_consent(); cancel_consent() abandons the flow
     private boolean testMode = true;
+    private String maxAdContentRating = RequestConfiguration.MAX_AD_CONTENT_RATING_G;
     private final List<String> testDeviceIds = new ArrayList<>();
 
     // Also read from the render thread.
     private volatile boolean initialized; // the app id passed the test-id guard
     private volatile boolean interstitialReady;
+    private volatile boolean privacyOptionsRequired;
 
     public NachhallAdsPlugin(Godot godot) {
         super(godot);
@@ -96,21 +106,24 @@ public class NachhallAdsPlugin extends GodotPlugin {
     @NonNull
     @Override
     public Set<SignalInfo> getPluginSignals() {
-        return new HashSet<>(Arrays.asList(INITIALIZED, CONSENT_FORM_SHOWN, CONSENT_RESULT,
+        return new HashSet<>(Arrays.asList(INITIALIZED, CONSENT_INFO, CONSENT_FORM_SHOWN, CONSENT_RESULT,
                 INTERSTITIAL_LOADED, INTERSTITIAL_FAILED_TO_LOAD, INTERSTITIAL_SHOWN,
                 INTERSTITIAL_FAILED_TO_SHOW, INTERSTITIAL_CLOSED));
     }
 
     /**
-     * Checks the manifest app id (must be Google's test id) and reads the consent decision cached
-     * from an earlier session. Emits initialized(consent_status, can_request_ads, sdk_version);
+     * Checks the manifest app id (must be Google's test id), emits
+     * initialized(consent_status, can_request_ads, sdk_version) and then updates the consent
+     * information as Google requires at every app launch (no form): consent_info(...).
      * consent_status "refused" means the guard stopped the plugin for good.
      *
      * @param test_mode UMP debug settings (EEA geography, forced test device); always on here.
      * @param test_device_hashed_ids optional comma-separated UMP test device ids (from logcat).
+     * @param max_ad_content_rating "G", "PG", "T" or "MA": the highest ad rating allowed; it must
+     *     fit the app's own content rating (Play policy). Anything else means "G".
      */
     @UsedByGodot
-    public void initialize(boolean test_mode, String test_device_hashed_ids) {
+    public void initialize(boolean test_mode, String test_device_hashed_ids, String max_ad_content_rating) {
         runOnHostThread(() -> {
             Activity activity = getActivity();
             if (activity == null) {
@@ -132,20 +145,39 @@ public class NachhallAdsPlugin extends GodotPlugin {
                     }
                 }
             }
+            maxAdContentRating = contentRating(max_ad_content_rating);
             consent = UserMessagingPlatform.getConsentInformation(activity);
             initialized = true;
-            Log.i(TAG, "Initialized with test app id " + appId + ", test mode " + testMode);
-            emitSignal(INITIALIZED, consentStatus(activity), consent.canRequestAds(),
-                    MobileAds.getVersion().toString());
+            Log.i(TAG, "Initialized with test app id " + appId + ", test mode " + testMode
+                    + ", max ad content rating " + maxAdContentRating);
+            emitSignal(INITIALIZED, consentStatus(activity), adsAllowed(), MobileAds.getVersion().toString());
+            updateConsentInfo(activity);
+        });
+    }
+
+    /**
+     * Updates the consent information without showing a form (e.g. after starting offline).
+     * Emits consent_info(status, can_request_ads, error); error is "" when the update succeeded,
+     * otherwise UMP keeps the status of the previous session.
+     */
+    @UsedByGodot
+    public void refresh_consent() {
+        runOnHostThread(() -> {
+            Activity activity = getActivity();
+            if (!initialized || activity == null) {
+                emitSignal(CONSENT_INFO, "unknown", false, "not initialized");
+                return;
+            }
+            updateConsentInfo(activity);
         });
     }
 
     /**
      * UMP flow: refreshes the consent information, then shows the consent form if a decision is
      * required or, with force, the privacy options form so the player can change it. Emits
-     * consent_form_shown() when a form appears, then always
-     * consent_result(status, can_request_ads, error); status: granted | denied | not_required |
-     * unknown (no decision, e.g. offline: ask again later).
+     * consent_form_shown() when a form appears, then consent_result(status, can_request_ads,
+     * error); status: granted | denied | not_required | unknown (no decision, e.g. offline: ask
+     * again later). A newer call or cancel_consent() abandons a flow whose form has not appeared.
      */
     @UsedByGodot
     public void request_consent(boolean force) {
@@ -155,14 +187,37 @@ public class NachhallAdsPlugin extends GodotPlugin {
                 emitSignal(CONSENT_RESULT, "unknown", false, "not initialized");
                 return;
             }
-            if (consentBusy) {
-                return; // the running flow emits the result
-            }
-            consentBusy = true;
+            final int flow = ++consentFlow;
             consent.requestConsentInfoUpdate(activity, consentParameters(activity),
-                    () -> showConsentForm(activity, force),
-                    error -> finishConsent(activity, error));
+                    () -> {
+                        if (flow == consentFlow) {
+                            showConsentForm(activity, force, flow);
+                        }
+                    },
+                    error -> {
+                        if (flow == consentFlow) {
+                            finishConsent(activity, error);
+                        }
+                    });
         });
+    }
+
+    /**
+     * The game stopped waiting (timeout): a consent form that has not appeared yet must not pop up
+     * later, e.g. over the next night. A form already on screen stays until the player answers.
+     */
+    @UsedByGodot
+    public void cancel_consent() {
+        runOnHostThread(() -> consentFlow++);
+    }
+
+    /**
+     * True when UMP says the app must offer a way to change the decision (privacy options);
+     * known after the first consent information update.
+     */
+    @UsedByGodot
+    public boolean is_privacy_options_required() {
+        return privacyOptionsRequired;
     }
 
     /**
@@ -183,7 +238,7 @@ public class NachhallAdsPlugin extends GodotPlugin {
                 emitSignal(INTERSTITIAL_FAILED_TO_LOAD, ERROR_NOT_READY, "not initialized");
                 return;
             }
-            if (!consent.canRequestAds()) {
+            if (!adsAllowed()) {
                 emitSignal(INTERSTITIAL_FAILED_TO_LOAD, ERROR_NO_CONSENT, "consent does not allow ad requests");
                 return;
             }
@@ -194,6 +249,7 @@ public class NachhallAdsPlugin extends GodotPlugin {
                 new Thread(() -> MobileAds.initialize(app), "NachhallAdsInit").start();
             }
             MobileAds.setRequestConfiguration(MobileAds.getRequestConfiguration().toBuilder()
+                    .setMaxAdContentRating(maxAdContentRating)
                     .setPublisherPrivacyPersonalizationState(personalized
                             ? RequestConfiguration.PublisherPrivacyPersonalizationState.DEFAULT
                             : RequestConfiguration.PublisherPrivacyPersonalizationState.DISABLED)
@@ -289,30 +345,79 @@ public class NachhallAdsPlugin extends GodotPlugin {
         return params.build();
     }
 
-    private void showConsentForm(Activity activity, boolean force) {
-        if (force && consent.getPrivacyOptionsRequirementStatus()
-                == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED) {
+    private void updateConsentInfo(Activity activity) {
+        if (updating) {
+            return; // the running update emits consent_info
+        }
+        updating = true;
+        consent.requestConsentInfoUpdate(activity, consentParameters(activity),
+                () -> finishUpdate(activity, ""),
+                error -> finishUpdate(activity, error.getErrorCode() + ": " + error.getMessage()));
+    }
+
+    private void finishUpdate(Activity activity, String error) {
+        updating = false;
+        privacyOptionsRequired = consent.getPrivacyOptionsRequirementStatus()
+                == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
+        if (!error.isEmpty()) {
+            Log.w(TAG, "Consent information update: " + error);
+        }
+        emitSignal(CONSENT_INFO, consentStatus(activity), adsAllowed(), error);
+    }
+
+    private void showConsentForm(Activity activity, boolean force, int flow) {
+        privacyOptionsRequired = consent.getPrivacyOptionsRequirementStatus()
+                == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
+        if (force && privacyOptionsRequired) {
             emitSignal(CONSENT_FORM_SHOWN);
             UserMessagingPlatform.showPrivacyOptionsForm(activity, error -> finishConsent(activity, error));
         } else if (consent.getConsentStatus() == ConsentInformation.ConsentStatus.REQUIRED
                 && consent.isConsentFormAvailable()) {
             UserMessagingPlatform.loadConsentForm(activity, form -> {
+                if (flow != consentFlow) {
+                    return; // abandoned while the form loaded: never show it late
+                }
                 emitSignal(CONSENT_FORM_SHOWN);
                 form.show(activity, error -> finishConsent(activity, error));
-            }, error -> finishConsent(activity, error));
+            }, error -> {
+                if (flow == consentFlow) {
+                    finishConsent(activity, error);
+                }
+            });
         } else {
             finishConsent(activity, null);
         }
     }
 
     private void finishConsent(Activity activity, FormError error) {
-        consentBusy = false;
         String message = "";
         if (error != null) {
             message = error.getErrorCode() + ": " + error.getMessage();
             Log.w(TAG, "Consent flow: " + message);
         }
-        emitSignal(CONSENT_RESULT, consentStatus(activity), consent.canRequestAds(), message);
+        privacyOptionsRequired = consent.getPrivacyOptionsRequirementStatus()
+                == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
+        emitSignal(CONSENT_RESULT, consentStatus(activity), adsAllowed(), message);
+    }
+
+    /**
+     * Ad requests need a decision: OBTAINED or NOT_REQUIRED, and canRequestAds(). canRequestAds()
+     * alone is not enough, because UMP also returns true when it flags the publisher setup as
+     * misconfigured, before anyone was asked.
+     */
+    private boolean adsAllowed() {
+        int status = consent.getConsentStatus();
+        return consent.canRequestAds() && (status == ConsentInformation.ConsentStatus.OBTAINED
+                || status == ConsentInformation.ConsentStatus.NOT_REQUIRED);
+    }
+
+    private static String contentRating(String rating) {
+        if (RequestConfiguration.MAX_AD_CONTENT_RATING_PG.equals(rating)
+                || RequestConfiguration.MAX_AD_CONTENT_RATING_T.equals(rating)
+                || RequestConfiguration.MAX_AD_CONTENT_RATING_MA.equals(rating)) {
+            return rating;
+        }
+        return RequestConfiguration.MAX_AD_CONTENT_RATING_G;
     }
 
     /** UMP state in the vocabulary of the game's AdAdapter. */

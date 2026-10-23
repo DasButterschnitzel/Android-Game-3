@@ -10,6 +10,12 @@ extends AdAdapter
 ## timeout. Time is counted in frames the game actually runs (clamped per
 ## frame), so an ad in front of the paused app does not run the clock out,
 ## while a silent plugin can never hold the game.
+##
+## Consent (Google UMP): start() updates the consent information as Google
+## requires at every app launch, without a form; the result goes to AdService
+## (consent_info_changed). The form itself appears only when AdService asks at a
+## natural break. Ads are loaded only with a decision (granted, denied or not
+## required), never on "unknown".
 
 const SINGLETON := "NachhallAds"
 ## Google's public sample publisher id; any other id is refused.
@@ -25,17 +31,23 @@ var show_timeout := 8.0
 var ad_timeout := 120.0
 ## A load without an answer counts as lost after this many seconds.
 var load_stale_after := 60.0
+## Highest ad content rating ("G", "PG", "T", "MA"); must fit the game's own
+## rating (Play policy). From ads.json "max_ad_content_rating".
+var max_ad_content_rating := "G"
 
 var _plugin: Object
 var _unit_id := ""
 var _test_device_ids := ""
+var _started := false
 var _consent := "unknown"  # last status reported by the plugin
 var _can_request_ads := false
+var _info_fresh := false  # the last consent information update succeeded
 var _loading := false
 var _load_started_ms := 0
 var _loaded_personalized := false
 # Results of the call in flight; "" while waiting.
 var _consent_result := ""
+var _waiting_consent := false
 var _form_open := false
 var _show_result := ""  # "closed" or "failed"
 var _shown := false
@@ -63,6 +75,7 @@ func configure(config: Dictionary) -> void:
 		push_warning("AdMobAdapter: interstitial id is not a Google TEST ad unit; no ads")
 	var devices = config.get("admob_test_device_hashed_ids", [])
 	_test_device_ids = ",".join(PackedStringArray(devices)) if devices is Array else ""
+	max_ad_content_rating = str(config.get("max_ad_content_rating", max_ad_content_rating))
 
 
 func _ready() -> void:
@@ -70,7 +83,14 @@ func _ready() -> void:
 		return
 	for s in _signals():
 		_plugin.connect(s, _signals()[s])
-	_plugin.initialize(true, _test_device_ids)  # test mode is not optional in this build
+
+
+## First use: the plugin checks the test ids and updates the consent information.
+func start() -> void:
+	if _plugin == null or _started or not is_inside_tree():
+		return
+	_started = true
+	_plugin.initialize(true, _test_device_ids, max_ad_content_rating)  # test mode is not optional here
 
 
 func _exit_tree() -> void:
@@ -82,28 +102,44 @@ func _exit_tree() -> void:
 
 
 ## UMP: consent form if a decision is needed, privacy options form with force.
-## "unknown" if nothing could be decided in time (e.g. offline): AdService asks
-## again at a later natural break.
+## "unknown" if nothing could be decided now (e.g. offline): AdService asks
+## again at a later natural break. Without fresh consent information (the
+## update at app start failed) it does not wait at the break: it starts a new
+## update in the background and returns at once.
 func request_consent(force := false) -> String:
-	if _plugin == null or not is_inside_tree():
+	if _plugin == null or not _started or not is_inside_tree():
 		return "unknown"
+	if not force:
+		if not _info_fresh:
+			_plugin.refresh_consent()
+			return "unknown"
+		if _consent != "unknown":
+			return _consent  # decided or not required: nothing to ask
 	_consent_result = ""
 	_form_open = false
+	_waiting_consent = true
 	_plugin.request_consent(force)
 	var waited := 0.0
 	while _consent_result == "":
 		if waited >= (form_timeout if _form_open else consent_timeout):
 			push_warning("AdMobAdapter: no consent result in time")
+			_plugin.cancel_consent()  # a form that has not appeared must not pop up later
+			_waiting_consent = false
 			return "unknown"
 		waited += await _frame()
+	_waiting_consent = false
 	return _consent_result
+
+
+func privacy_options_required() -> bool:
+	return _plugin != null and _started and bool(_plugin.is_privacy_options_required())
 
 
 ## Shows a preloaded interstitial and returns after it was closed. Never waits
 ## for a load at the natural break: without a ready ad it returns false at once
 ## and loads one for the next break.
 func show_interstitial(personalized: bool) -> bool:
-	if _plugin == null or _unit_id == "" or not is_inside_tree():
+	if _plugin == null or _unit_id == "" or not _started or not is_inside_tree():
 		return false
 	if not _plugin.is_interstitial_ready() or _loaded_personalized != personalized:
 		_preload(personalized, true)
@@ -124,7 +160,7 @@ func show_interstitial(personalized: bool) -> bool:
 ## Starts loading the next interstitial in the background when consent allows
 ## it. force: also replace a ready ad (it was loaded for another consent choice).
 func _preload(personalized: bool, force := false) -> void:
-	if _plugin == null or _unit_id == "" or not _can_request_ads:
+	if _plugin == null or _unit_id == "" or not _can_request_ads or _consent == "unknown":
 		return
 	if _loading and Time.get_ticks_msec() - _load_started_ms < int(load_stale_after * 1000.0):
 		return
@@ -147,6 +183,7 @@ func _frame() -> float:
 func _signals() -> Dictionary:
 	return {
 		"initialized": _on_initialized,
+		"consent_info": _on_consent_info,
 		"consent_form_shown": _on_consent_form_shown,
 		"consent_result": _on_consent_result,
 		"interstitial_loaded": _on_loaded,
@@ -157,6 +194,7 @@ func _signals() -> Dictionary:
 	}
 
 
+## Test ids accepted (or "refused"); the consent information update follows.
 func _on_initialized(status: String, can_request_ads: bool, info: String) -> void:
 	print("AdMobAdapter: NachhallAds consent=%s ads_allowed=%s (%s)" % [status, can_request_ads, info])
 	if status == "refused":  # the plugin's own test-id guard stopped it
@@ -164,7 +202,20 @@ func _on_initialized(status: String, can_request_ads: bool, info: String) -> voi
 		return
 	_consent = status
 	_can_request_ads = can_request_ads
-	_preload(_consent == "granted")  # consent from an earlier session
+
+
+## Consent information update (app start or refresh_consent()). Fresh (no
+## error): AdService adopts the status, so an expired decision is asked again.
+## Failed (e.g. offline): UMP keeps the previous session's status.
+func _on_consent_info(status: String, can_request_ads: bool, error: String) -> void:
+	_consent = status
+	_can_request_ads = can_request_ads
+	if error == "":
+		_info_fresh = true
+		consent_info_changed.emit(status)
+	else:
+		push_warning("AdMobAdapter: consent information not updated: " + error)
+	_preload(_consent == "granted")
 
 
 func _on_consent_form_shown() -> void:
@@ -174,10 +225,14 @@ func _on_consent_form_shown() -> void:
 func _on_consent_result(status: String, can_request_ads: bool, error: String) -> void:
 	if error != "":
 		push_warning("AdMobAdapter: consent flow: " + error)
+	else:
+		_info_fresh = true
 	_consent = status
 	_can_request_ads = can_request_ads
 	_form_open = false
 	_consent_result = status
+	if not _waiting_consent:  # answered after the game stopped waiting: keep AdService in sync
+		consent_info_changed.emit(status)
 	_preload(_consent == "granted")
 
 

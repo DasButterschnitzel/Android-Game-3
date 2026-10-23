@@ -75,6 +75,11 @@ func show_interstitial(personalized: bool) -> bool:
 	return true
 
 
+## The placeholder flow always offers "Werbe-Einwilligung ändern".
+func privacy_options_required() -> bool:
+	return true
+
+
 func supports_rewarded() -> bool:
 	return true
 

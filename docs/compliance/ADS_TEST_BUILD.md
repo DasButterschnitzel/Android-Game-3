@@ -1,6 +1,6 @@
 # Werbetest-Build „Android-AdsTest“ – Spike für 0.6 „Monetization Preview“ (Agent E2)
 
-Stand: 2026-10-23 · Godot 4.7.2 · Google Mobile Ads SDK 25.5.0 · UMP 4.0.0
+Stand: 2026-10-23 (überarbeitet für 0.7 nach dem Ads-Review) · Godot 4.7.2 · Google Mobile Ads SDK 25.5.0 · UMP 4.0.0
 
 > Arbeitsdokument, keine Rechtsberatung. Der Build enthält ausschließlich **Googles öffentliche Test-IDs**, es gibt
 > kein Werbekonto, und nichts wird veröffentlicht. Echte Anzeigen, ein AdMob-Konto und jede Veröffentlichung sind
@@ -35,7 +35,7 @@ Export:  Preset "Android-AdsTest" (custom feature "nachhall_ads", Gradle-Build a
 
 | Datei | Zweck |
 |---|---|
-| `android_plugins/nachhall_ads/` | Plugin-Quelltext (Java, ≈ 300 Zeilen) + Gradle-Projekt (Wrapper 8.11.1, AGP 8.6.1, compileSdk 36, minSdk 24, Java 17 – wie die Godot-4.7.2-Gradle-Vorlage). godot-lib `org.godotengine:godot:4.7.2.stable` (exakt passende Version, Maven Central) nur `compileOnly`. |
+| `android_plugins/nachhall_ads/` | Plugin-Quelltext (Java, ≈ 470 Zeilen) + Gradle-Projekt (Wrapper 8.11.1, AGP 8.6.1, compileSdk 36, minSdk 24, Java 17 – wie die Godot-4.7.2-Gradle-Vorlage). godot-lib `org.godotengine:godot:4.7.2.stable` (exakt passende Version, Maven Central) nur `compileOnly`. |
 | `game/addons/nachhall_ads/bin/{debug,release}/NachhallAds-*.aar` | gebaute AARs (11 858 / 11 225 Byte), eingecheckt |
 | `game/addons/nachhall_ads/plugin.cfg`, `plugin.gd`, `export_plugin.gd` | Editor-Addon; registriert den Export-Plugin. Aktiv im Projekt (`[editor_plugins]` in `project.godot`). |
 | `game/scripts/ads/admob_adapter.gd` | echte Implementierung des `AdAdapter` gegen die Plugin-API (bisher Stub) |
@@ -45,21 +45,29 @@ Export:  Preset "Android-AdsTest" (custom feature "nachhall_ads", Gradle-Build a
 | `tools/build_ads_test.sh` | installiert die Gradle-Vorlage, exportiert `Android-AdsTest`, prüft das APK |
 | `tools/verify_ads_build.sh` | Build-Prüfungen für Werbetest-APK und (Gegenprobe) Standard-APK |
 | `tools/gradle/maven_central_mirror.gradle` | optionales Gradle-Init-Skript gegen HTTP 429 von Maven Central in der Sandbox (§10) |
-| `game/tests/unit/test_admob_adapter.gd` | 12 Tests des Adapters gegen ein nachgebautes Singleton |
+| `game/tests/unit/test_admob_adapter.gd` | 19 Tests des Adapters gegen ein nachgebautes Singleton, das sich wie UMP 4 verhält (vor der Aktualisierung keine Anzeigen) |
 
 ### Plugin-API (Singleton `NachhallAds`)
 
 | Methode | Ergebnis-Signal(e) |
 |---|---|
-| `initialize(test_mode: bool, test_device_hashed_ids: String)` | `initialized(consent_status, can_request_ads, sdk_version)`; Status `refused`, wenn die App-ID im Manifest keine Google-Test-ID ist |
-| `request_consent(force: bool)` | `consent_form_shown()` (falls ein Formular erscheint), dann immer `consent_result(status, can_request_ads, error)` mit `granted` / `denied` / `not_required` / `unknown` |
+| `initialize(test_mode: bool, test_device_hashed_ids: String, max_ad_content_rating: String)` | `initialized(consent_status, can_request_ads, sdk_version)`; Status `refused`, wenn die App-ID im Manifest keine Google-Test-ID ist; danach die Aktualisierung der Einwilligungsinformationen → `consent_info(status, can_request_ads, error)` |
+| `refresh_consent()` | `consent_info(status, can_request_ads, error)`; `error` leer = frisch, sonst gilt laut Google der Stand der letzten Sitzung |
+| `request_consent(force: bool)` | `consent_form_shown()` (falls ein Formular erscheint), dann `consent_result(status, can_request_ads, error)` mit `granted` / `denied` / `not_required` / `unknown` |
+| `cancel_consent()` | – (Zeitlimit: ein noch nicht erschienenes Formular erscheint nicht mehr) |
+| `is_privacy_options_required() -> bool` | – (Knopf „Werbe-Einwilligung ändern“ nur, wenn UMP ihn verlangt) |
 | `load_interstitial(unit_id: String, personalized: bool)` | `interstitial_loaded()` oder `interstitial_failed_to_load(code, message)` |
 | `is_interstitial_ready() -> bool` | – |
 | `show_interstitial()` | `interstitial_shown()`, dann `interstitial_closed()`; oder `interstitial_failed_to_show(code, message)` |
 | `reset_consent()` | – (Testhilfe: UMP-Entscheidung vergessen) |
 
-Ablauf: UMP **vor** jeder Anzeigenanfrage (`requestConsentInfoUpdate` → Formular nur falls nötig); `MobileAds.initialize()`
-erst beim ersten Laden nach Einwilligung (`canRequestAds()`), im Hintergrund-Thread. `personalized = false` setzt
+Ablauf (seit 0.7): Das Plugin startet erst, wenn Werbung eingeschaltet ist (Hauptschalter und Tester-Schalter), und
+aktualisiert dann bei **jedem App-Start** die Einwilligungsinformationen (`requestConsentInfoUpdate`, Googles Vorgabe;
+mit UMP 4.0.0 ist `canRequestAds()` vorher immer falsch). Das Formular erscheint nur, wenn das Spiel an einer Pause
+fragt; ohne frische Information wartet die Pause nicht, sondern stößt eine neue Aktualisierung im Hintergrund an.
+Angefragt wird nur mit Entscheidung (`OBTAINED`/`NOT_REQUIRED` **und** `canRequestAds()` – UMP meldet `canRequestAds()`
+auch bei einem Fehlkonfigurations-Flag); `MobileAds.initialize()` erst beim ersten Laden, im Hintergrund-Thread.
+Anfragen höchstens mit Inhaltseinstufung G (`setMaxAdContentRating`, aus `ads.json`). `personalized = false` setzt
 `PublisherPrivacyPersonalizationState.DISABLED` (nicht personalisierte Anzeigen). Statuszuordnung: UMP `OBTAINED` →
 `granted`, wenn laut TCF-Strings Zwecke 1, 3, 4 und Google (Anbieter 755) erlaubt sind, sonst `denied` (vereinfachte
 Annahme, §9); `NOT_REQUIRED` → `not_required`; sonst `unknown` (z. B. offline → AdService fragt später erneut).
@@ -85,7 +93,9 @@ Im Testmodus: UMP-Debug-Geografie EWR + `setForceTesting(true)` (damit das Formu
 - Neu und für jeden Build gültig (vorher fehlend): `EchoGame` meldet das Ende einer Nacht an `/root/Ads`
   (`on_round_finished()`), **nur falls** der Dienst existiert – im Standard-Build also wirkungslos.
 - Nie blockierend: Einwilligung wartet höchstens 8 s auf das Netz (offen sichtbares Formular: bis 300 s, der Spieler
-  liest), ein Interstitial wird **nie** an der Pause geladen – ist keins vorgeladen, geht es sofort weiter und das
+  liest); danach wird der Ablauf abgebrochen (`cancel_consent`), damit kein Formular verspätet über der nächsten Nacht
+  aufgeht. Ohne frische Einwilligungsinformation (Start offline) wird an der Pause gar nicht gewartet. Ein
+  Interstitial wird **nie** an der Pause geladen – ist keins vorgeladen, geht es sofort weiter und das
   nächste wird geladen. Nach „Zeigen“ höchstens 8 s bis zur Anzeige; die Zeit zählt nur, solange das Spiel selbst
   läuft (während eine Anzeige Godot pausiert, läuft keine Uhr ab).
 - Erweiterung des `AdAdapter`-Vertrags: `request_consent()` darf `"unknown"` liefern (keine Entscheidung möglich).
@@ -142,7 +152,7 @@ tools/verify_ads_build.sh builds/android/nachhall-adstest-debug.apk builds/andro
 godot --headless --path game --script res://tests/run_tests.gd
 ```
 
-Gradle-Aufruf, den Godot beim Export absetzt (aus `--verbose`, gekürzt):
+Gradle-Aufruf, den Godot beim Export absetzt (aus `--verbose`, gekürzt; Mitschnitt aus dem Spike mit Version 0.3.0):
 ```
 game/android/build/gradlew validateJavaVersion clean assembleStandardDebug -p game/android/build
   -Pexport_package_name=io.github.dasbutterschnitzel.nachhall.adstest -Pexport_version_code=30
@@ -159,7 +169,9 @@ AGP 8.6.1, Kotlin-Plugin 2.1.21, Build-Tools 36.1.0, Plattform android-36, **kei
 
 ## 6. Prüfergebnisse (Auszüge)
 
-Vollständige Berichte: `docs/builds/ads_test_spike/`.
+Vollständige Berichte: `docs/builds/ads_test_spike/` (Stand des Spikes, Version 0.3.0 mit Spike-Startszene; aktuelle
+Berichte entstehen mit `tools/build_ads_test.sh` neben dem APK, `*.ads-check.txt`, und prüfen seit 0.7 auch die
+verpackte `assets/data/ads.json` auf reine Test-IDs).
 
 `aapt2 dump badging` (Werbetest-APK):
 ```
@@ -187,7 +199,8 @@ application-label:'Nachhall Werbetest'
 "com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION" = true    (aus dem SDK-Manifest)
 ```
 Vom SDK eingebrachte Komponenten u. a.: `com.google.android.gms.ads.AdActivity`, `MobileAdsInitProvider`
-(startet beim App-Start automatisch), `com.google.android.gms.ads.AdService`, `OutOfContextTestingActivity`,
+(läuft beim App-Start; laut Bytecode-Prüfung im Ads-Review prüft er in 25.5.0 nur die App-ID und startet weder SDK
+noch Netz – auf einem Gerät nicht mitgeschnitten), `com.google.android.gms.ads.AdService`, `OutOfContextTestingActivity`,
 `NotificationHandlerActivity`, `com.google.android.play.core.hsdp.service.HsdpShimActivity`, WorkManager
 (`SystemJobService`, `SystemForegroundService`, mehrere Receiver), Room.
 
@@ -235,20 +248,27 @@ Hier läuft kein Android (kein Gerät, kein Emulator, keine KVM). **Nicht** bele
 - dass eine Test-Anzeige lädt, im Vollbild/immersiv erscheint, sich schließen lässt und das Spiel danach normal
   weiterläuft (Ton, Pause-Logik, Zurück-Taste während der Anzeige);
 - Verhalten offline, bei langsamem Netz, bei App-Wechsel während Formular/Anzeige; ANRs, Speicher;
-- **Netzwerkverkehr vor der Einwilligung**: Der `MobileAdsInitProvider` des SDK startet beim App-Start von selbst.
-  Das früher empfohlene Manifest-Flag `DELAY_APP_MEASUREMENT_INIT` kommt im dex von 25.5.0 nicht mehr vor und wurde
-  deshalb nicht gesetzt. Was das SDK vor `MobileAds.initialize()` sendet, muss auf einem Gerät mitgeschnitten werden;
-- Release-Build, AAB, Play-Console-Prüfungen.
+- **Netzwerkverkehr vor der Einwilligung**: Gewollt ist nur die UMP-Abfrage beim Start (Googles Vorgabe). Der
+  `MobileAdsInitProvider` läuft beim App-Start; das früher empfohlene Manifest-Flag `DELAY_APP_MEASUREMENT_INIT` kommt
+  im dex von 25.5.0 nicht mehr vor und wurde deshalb nicht gesetzt. Was tatsächlich vor `MobileAds.initialize()`
+  gesendet wird, muss auf einem Gerät mitgeschnitten werden;
+- Play-Console-Prüfungen (das Release-Bundle ohne Werbung ist seit 0.8 gebaut und geprüft, `tools/build_release.sh`).
 
 Gerätetest-Checkliste (Werbetest-APK, separat installierbar dank eigenem Paketnamen):
 1. `adb install builds/android/nachhall-adstest-debug.apk`, `adb logcat -s godot NachhallAds Ads UserMessagingPlatform`.
-   Erwartet: `AdMobAdapter: NachhallAds consent=unknown ads_allowed=false (25.5.0)` (o. ä.) nach dem Start.
+   Erwartet: `AdMobAdapter: NachhallAds consent=unknown ads_allowed=false (25.5.0)` (o. ä.) nach dem Start, kurz danach
+   ohne Warnung „consent information not updated“.
 2. Eine Nacht spielen → „Nochmal“: UMP-Formular erscheint (Debug-Geografie EWR). Zustimmen bzw. ablehnen.
 3. Zweite Nacht → „Nochmal“: Google-Testanzeige („Test Ad“) erscheint, schließen → neue Nacht startet, Ton läuft.
-4. Einstellungen → Datenschutz → „Werbe-Einwilligung ändern“: Datenschutzoptionen-Formular erscheint.
-5. Flugmodus: Spiel startet und läuft ohne Hänger, keine Anzeige, Einwilligung wird später erneut versucht.
-6. Netzwerkverkehr vor der Einwilligung mitschneiden (z. B. Proxy/Profiler) und bewerten.
-7. Den Hash der Testgeräte-ID aus logcat bei Bedarf in `admob_test_device_hashed_ids` (`ads.json`) eintragen.
+4. **App ganz beenden und neu starten**, zwei Nächte spielen: wieder eine Testanzeige, **keine** zweite Frage
+   (Regression aus dem Ads-Review 0.7: vorher kam nach einem Neustart nie wieder eine Anzeige).
+5. Einstellungen → Datenschutz → „Werbe-Einwilligung ändern“: Datenschutzoptionen-Formular erscheint.
+6. Flugmodus: Spiel startet und läuft ohne Hänger, keine Anzeige, „Nochmal“ reagiert sofort; nach Wiederherstellen des
+   Netzes wird die Einwilligung an einer späteren Pause erfragt.
+7. Langsames Netz (z. B. Drosselung): erscheint das Formular nicht binnen 8 s, geht das Spiel weiter, und es darf auch
+   später **nicht** über einer Nacht aufgehen.
+8. Netzwerkverkehr vor der Einwilligung mitschneiden (z. B. Proxy/Profiler) und bewerten.
+9. Den Hash der Testgeräte-ID aus logcat bei Bedarf in `admob_test_device_hashed_ids` (`ads.json`) eintragen.
 
 ## 9. Entscheidungen des Inhabers
 1. **Echte Werbung** (AdMob-Konto, App-ID, Anzeigenblöcke) ist ausdrücklich nicht Teil des Spikes. Dafür müssten die
@@ -259,14 +279,15 @@ Gerätetest-Checkliste (Werbetest-APK, separat installierbar dank eigenem Paketn
 3. **Größe**: SDK ≈ +4,9 MB; ein Gradle-Build für die Store-Version (oder AAB) ist für Plugins ohnehin nötig.
 4. **Berechtigungen/Formulare**: AD_ID, ADSERVICES_*, WAKE_LOCK, FOREGROUND_SERVICE (über WorkManager) müssen in
    Data Safety, Werbe-ID-Erklärung und ggf. Vordergrunddienst-Erklärung der Play Console abgebildet werden;
-   `DATA_SAFETY.md` und `PRIVACY_POLICY.md` decken das Werbe-SDK noch nicht ab.
+   `DATA_SAFETY.md` und `PRIVACY_POLICY.md` enthalten Entwürfe dafür (Googles Data disclosure für 25.5.0).
 5. **Personalisierung**: Die Zuordnung „granted“ (TCF-Zwecke 1, 3, 4 + Anbieter 755) ist eine Vereinfachung –
    rechtlich prüfen; Kinder-/Families-Kennzeichnung (`tagForUnderAgeOfConsent`, Zielgruppe 13+) ist offen und
    bisher nicht gesetzt.
-6. **Erneute Einwilligung**: `AdService` fragt nur, solange der gespeicherte Status `unknown` ist. Google empfiehlt
-   `requestConsentInfoUpdate` bei jedem Start (z. B. wenn eine Einwilligung abläuft); für 0.6 nachziehen.
+6. ~~**Erneute Einwilligung**~~ – erledigt in 0.7: Aktualisierung bei jedem Start, eine abgelaufene Entscheidung
+   wird erneut erfragt (§2, Ablauf).
 7. **Frequenz-Overrides** des Werbetest-Builds (`ads_test_overrides`) sind nur für Gerätetests gedacht.
 8. **CI**: Der Werbetest-Build ist nicht in `.github/workflows/android.yml` (Laufzeit, Netz); bei Bedarf ergänzen.
+   Seit 0.7 prüft die CI aber das Standard-APK auf „kein Werbe-SDK, kein `INTERNET`“ und baut das Release-Bundle.
 9. **Editor-Skripte im PCK** (§4): so lassen oder per `exclude_filter` aus allen Presets nehmen.
 
 ## 10. Hinweise und Stolpersteine

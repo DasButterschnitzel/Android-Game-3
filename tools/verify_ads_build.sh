@@ -4,6 +4,7 @@
 # fails on the first broken expectation. Nothing here runs the app: whether ads
 # work on a device is NOT checked (no device/emulator, see ADS_TEST_BUILD.md).
 # Usage: tools/verify_ads_build.sh <adstest.apk> [<default.apk>]
+#        tools/verify_ads_build.sh --default <default.apk>   (only the default APK, e.g. in CI)
 set -euo pipefail
 ANDROID_SDK="${ANDROID_HOME:-/opt/android-sdk}"
 BT="$ANDROID_SDK/build-tools/35.0.1"
@@ -72,6 +73,13 @@ check_adstest() {
   grep -q '^com/google/android/ump/UserMessagingPlatform$' "$WORK/classes.txt" || fail "AdsTest: UMP not in dex"
   grep -q 'nachhall/ads/NachhallAdsPlugin$' "$WORK/classes.txt" || fail "AdsTest: NachhallAdsPlugin not in dex"
   unzip -p "$apk" assets/project.binary | strings | grep -q "nachhall_ads" || fail "AdsTest: feature tag nachhall_ads not in project.binary"
+  # The packaged ad config (incl. ads_test_overrides) may hold Google's test ids only.
+  unzip -p "$apk" assets/data/ads.json > "$WORK/ads.json" 2>/dev/null || fail "AdsTest: assets/data/ads.json missing"
+  grep -q "$TEST_APP_ID" "$WORK/ads.json" || fail "AdsTest: packaged ads.json lacks the Google test app id"
+  if grep -oE 'ca-app-pub-[0-9]+[~/]?' "$WORK/ads.json" | grep -qvE "^$TEST_PUBLISHER[~/]$"; then
+    fail "AdsTest: packaged ads.json contains an AdMob id that is not one of Google's test ids"
+  fi
+  echo "packaged ads.json ids: $(grep -oE 'ca-app-pub-[0-9]+[~/][0-9]+' "$WORK/ads.json" | sort -u | tr '\n' ' ')" >> "$report"
   echo "OK AdsTest: $apk ($(du -h "$apk" | cut -f1)) -> $report"
 }
 
@@ -92,6 +100,10 @@ check_default() {
   echo "OK default: $apk ($(du -h "$apk" | cut -f1)) has no ads SDK, no INTERNET -> $report"
 }
 
+if [ "${1:-}" = "--default" ]; then
+  check_default "${2:?default apk}"
+  exit 0
+fi
 check_adstest "${1:?adstest apk}"
 [ -n "${2:-}" ] && check_default "$2"
 exit 0

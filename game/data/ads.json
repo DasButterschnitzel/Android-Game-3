@@ -1,5 +1,5 @@
 {
-  "_comment": "Ad configuration. ads_enabled is the master switch (false: no ads, no consent question). adapter: none | mock | admob. Real ad unit IDs only after the owner's approval; the admob ids below are Google's public TEST ids. adapter_ads_test and ads_test_overrides apply only to the experimental Android-AdsTest export (docs/compliance/ADS_TEST_BUILD.md). Caps: docs/compliance/ADS_AND_CONSENT.md.",
+  "_comment": "Ad configuration. ads_enabled is the master switch (false: no ads, no consent question). adapter: none | mock | admob. Real ad unit IDs only after the owner's approval; the admob ids below are Google's public TEST ids. adapter_ads_test and ads_test_overrides apply only to the experimental Android-AdsTest export (docs/compliance/ADS_TEST_BUILD.md). max_ad_content_rating must fit the game's own content rating (Play policy). Caps: docs/compliance/ADS_AND_CONSENT.md.",
   "ads_enabled": true,
   "adapter_debug": "mock",
   "adapter_release": "none",
@@ -11,6 +11,7 @@
   "min_seconds_between": 300.0,
   "min_lifetime_rounds": 5,
   "consent_after_rounds": 2,
+  "max_ad_content_rating": "G",
   "mock_close_after": 2.0,
   "ads_test_overrides": {
     "consent_after_rounds": 1,

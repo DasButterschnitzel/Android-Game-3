@@ -13,6 +13,9 @@ var min_seconds_between := 180.0
 var min_lifetime_rounds := 5  # brand-new players get their first nights ad-free
 var enabled := true
 var lifetime_rounds := 0  # finished nights ever (from the save), set by the caller
+## Wall-clock time (unix seconds) of the last interstitial, from the save, so the
+## time cap also holds after an app restart; 0 = none yet.
+var last_shown_unix := 0.0
 
 var _rounds_since_last := 0
 var _rounds_this_session := 0
@@ -36,7 +39,9 @@ func on_round_finished() -> void:
 
 ## Natural break check, e.g. when the player leaves the results screen.
 ## consent_ready: the consent flow has completed (granted or not).
-func should_show_interstitial(now_sec: float, consent_ready: bool) -> bool:
+## now_unix: wall clock for the cap across restarts (< 0: not checked; a clock
+## set back before the last ad cannot be judged, the in-session cap still holds).
+func should_show_interstitial(now_sec: float, consent_ready: bool, now_unix := -1.0) -> bool:
 	if not enabled or not consent_ready:
 		return false
 	if lifetime_rounds < min_lifetime_rounds:
@@ -47,12 +52,18 @@ func should_show_interstitial(now_sec: float, consent_ready: bool) -> bool:
 		return false
 	if now_sec - _last_shown_at < min_seconds_between:
 		return false
+	if now_unix >= 0.0 and last_shown_unix > 0.0:
+		var since := now_unix - last_shown_unix
+		if since >= 0.0 and since < min_seconds_between:
+			return false
 	return true
 
 
-func on_interstitial_shown(now_sec: float) -> void:
+func on_interstitial_shown(now_sec: float, now_unix := -1.0) -> void:
 	_rounds_since_last = 0
 	_last_shown_at = now_sec
+	if now_unix >= 0.0:
+		last_shown_unix = now_unix
 
 
 ## Ratio of rounds with an ad in a steady stream of rounds of given length
